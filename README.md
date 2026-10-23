@@ -151,7 +151,9 @@ As telas não escrevem SQL. Elas chamam os **repositórios** em `src/database/`,
 
 | Login | Listagem | Ficha do aluno | Dashboard |
 |---|---|---|---|
-| ![Login](docs/prints/login.png) | ![Listagem](docs/prints/listagem.png) | ![Ficha](docs/prints/ficha.png) | ![Dashboard](docs/prints/dashboard.png) |
+| ![Login](<img width="1916" height="966" alt="Captura de tela 2026-10-23 162825" src="https://github.com/user-attachments/assets/42f03bbd-3e75-4ee2-b260-8b87f46523ab" />
+) | ![Listagem](docs/prints/listagem.png) | ![Ficha](<img width="1917" height="906" alt="Captura de tela 2026-10-23 191659" src="https://github.com/user-attachments/assets/c060a0b8-ef61-4260-9a22-9488050f055f" />
+) | ![Dashboard](docs/prints/dashboard.png) |
 
 ## Documentação
 
