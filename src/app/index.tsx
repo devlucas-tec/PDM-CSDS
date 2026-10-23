@@ -1,98 +1,118 @@
-import * as Device from 'expo-device';
-import { Platform, StyleSheet } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { AnimatedIcon } from '@/components/animated-icon';
-import { HintRow } from '@/components/hint-row';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { WebBadge } from '@/components/web-badge';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+type Role = 'Coordenadora' | 'Administrador' | 'Professor';
+type Student = { id: number; name: string; initials: string; group: string; age: number; status: 'Ativo' | 'Atenção'; attendance?: boolean };
+const SEED: Student[] = [
+  { id: 1, name: 'Ana Clara Santos', initials: 'AS', group: 'Judô • Infantil', age: 9, status: 'Ativo' },
+  { id: 2, name: 'Benjamin Oliveira', initials: 'BO', group: 'Música • Violão', age: 12, status: 'Ativo' },
+  { id: 3, name: 'Cecília Martins', initials: 'CM', group: 'Artes • Desenho', age: 10, status: 'Atenção' },
+  { id: 4, name: 'Davi Rodrigues', initials: 'DR', group: 'Judô • Infantil', age: 8, status: 'Ativo' },
+  { id: 5, name: 'Emanuel Costa', initials: 'EC', group: 'Música • Violão', age: 11, status: 'Ativo' },
+  { id: 6, name: 'Fernanda Lima', initials: 'FL', group: 'Dança • Contemporânea', age: 13, status: 'Ativo' },
+];
+const ROLES: Role[] = ['Coordenadora', 'Administrador', 'Professor'];
+const NAV = ['Visão geral', 'Alunos', 'Oficinas', 'Frequência', 'Relatórios'];
 
-function getDevMenuHint() {
-  if (Platform.OS === 'web') {
-    return <ThemedText type="small">use browser devtools</ThemedText>;
-  }
-  if (Device.isDevice) {
-    return (
-      <ThemedText type="small">
-        shake device or press <ThemedText type="code">m</ThemedText> in terminal
-      </ThemedText>
-    );
-  }
-  const shortcut = Platform.OS === 'android' ? 'cmd+m (or ctrl+m)' : 'cmd+d';
-  return (
-    <ThemedText type="small">
-      press <ThemedText type="code">{shortcut}</ThemedText>
-    </ThemedText>
-  );
+async function readStudents(): Promise<Student[]> {
+  if (Platform.OS !== 'web') return SEED;
+  try {
+    const saved = globalThis.localStorage?.getItem('atelier-students');
+    return saved ? JSON.parse(saved) as Student[] : SEED;
+  } catch { return SEED; }
+}
+async function saveStudents(items: Student[]) {
+  if (Platform.OS === 'web') globalThis.localStorage?.setItem('atelier-students', JSON.stringify(items));
 }
 
 export default function HomeScreen() {
-  return (
-    <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-        <ThemedView style={styles.heroSection}>
-          <AnimatedIcon />
-          <ThemedText type="title" style={styles.title}>
-            Welcome to&nbsp;Expo
-          </ThemedText>
-        </ThemedView>
+  const { width } = useWindowDimensions();
+  const compact = width < 760;
+  const [role, setRole] = useState<Role>('Coordenadora');
+  const [section, setSection] = useState('Visão geral');
+  const [students, setStudents] = useState<Student[]>(SEED);
+  const [search, setSearch] = useState('');
+  const [newName, setNewName] = useState('');
+  const [adding, setAdding] = useState(false);
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const [ready, setReady] = useState(false);
 
-        <ThemedText type="code" style={styles.code}>
-          get started
-        </ThemedText>
+  useEffect(() => { readStudents().then((items) => { setStudents(items); setReady(true); }); }, []);
+  useEffect(() => { if (ready) void saveStudents(students); }, [students, ready]);
 
-        <ThemedView type="backgroundElement" style={styles.stepContainer}>
-          <HintRow
-            title="Try editing"
-            hint={<ThemedText type="code">src/app/index.tsx</ThemedText>}
-          />
-          <HintRow title="Dev tools" hint={getDevMenuHint()} />
-          <HintRow
-            title="Fresh start"
-            hint={<ThemedText type="code">npm run reset-project</ThemedText>}
-          />
-        </ThemedView>
+  const filtered = useMemo(() => students.filter((s) => `${s.name} ${s.group}`.toLowerCase().includes(search.toLowerCase())), [students, search]);
+  const permissions: Record<Role, string[]> = {
+    Coordenadora: ['Visão geral', 'Alunos', 'Oficinas', 'Frequência', 'Relatórios'],
+    Administrador: ['Visão geral', 'Alunos', 'Oficinas', 'Frequência', 'Relatórios'],
+    Professor: ['Visão geral', 'Alunos', 'Oficinas', 'Frequência', 'Relatórios'],
+  };
+  const canManage = role !== 'Professor';
+  const currentLabel = role === 'Professor' ? 'Professor • Lucas Mendes' : role === 'Administrador' ? 'Administrador • Marina Costa' : 'Coordenadora • Marina Costa';
+  const addStudent = () => {
+    const name = newName.trim(); if (!name) return;
+    setStudents((old) => [...old, { id: Date.now(), name, initials: name.split(/\s+/).slice(0, 2).map((p) => p[0]?.toUpperCase()).join(''), group: 'Nova oficina', age: 10, status: 'Ativo' }]);
+    setNewName(''); setAdding(false);
+  };
+  const setPresence = (id: number) => setStudents((old) => old.map((s) => s.id === id ? { ...s, attendance: !s.attendance } : s));
 
-        {Platform.OS === 'web' && <WebBadge />}
-      </SafeAreaView>
-    </ThemedView>
-  );
+  return <SafeAreaView style={styles.safe}>
+    <View style={[styles.shell, compact && styles.shellCompact]}>
+      {!compact && <View style={styles.sidebar}>
+        <View style={styles.brand}><View style={styles.brandMark}><Text style={styles.brandIcon}>✳</Text></View><View><Text style={styles.brandName}>Ateliê</Text><Text style={styles.brandCaption}>GESTÃO ESCOLAR</Text></View></View>
+        <Text style={styles.navLabel}>MENU PRINCIPAL</Text>
+        {NAV.map((item, i) => <Pressable key={item} onPress={() => setSection(item)} style={[styles.navItem, section === item && styles.navActive]}><Text style={[styles.navGlyph, section === item && styles.navGlyphActive]}>{['⌂', '♙', '✳', '✓', '▤'][i]}</Text><Text style={[styles.navText, section === item && styles.navTextActive]}>{item}</Text>{item === 'Alunos' && <Text style={styles.navCount}>{students.length}</Text>}</Pressable>)}
+        <View style={styles.sidebarBottom}><View style={styles.helpIcon}><Text style={{ color: '#66766a' }}>?</Text></View><View><Text style={styles.helpTitle}>Precisa de ajuda?</Text><Text style={styles.helpCopy}>Acesse nosso suporte</Text></View><Text style={styles.chevron}>›</Text></View>
+      </View>}
+      <View style={styles.main}>
+        <View style={[styles.topbar, compact && styles.topbarCompact]}>
+          {compact ? <View style={styles.brand}><View style={styles.brandMark}><Text style={styles.brandIcon}>✳</Text></View><Text style={styles.brandName}>Ateliê</Text></View> : <View><Text style={styles.breadcrumb}>INÍCIO <Text style={{ color: '#b1b9af' }}> / </Text> {section.toUpperCase()}</Text></View>}
+          <View style={styles.topActions}><Pressable style={styles.iconButton}><Text style={styles.bell}>♧</Text><View style={styles.dot} /></Pressable><View style={styles.topDivider} /><View style={styles.avatar}><Text style={styles.avatarText}>MC</Text></View><View style={styles.userText}><Text style={styles.userName}>{currentLabel.split(' • ')[1]}</Text><Text style={styles.userRole}>{role}</Text></View><View style={styles.profilePickerWrap}><Pressable accessibilityRole="button" accessibilityLabel="Abrir opções de perfil" accessibilityState={{ expanded: profileMenuOpen }} style={[styles.roleSelect, profileMenuOpen && styles.roleSelectOpen]} onPress={() => setProfileMenuOpen((open) => !open)}><Text style={styles.roleSelectText}>Trocar perfil</Text><Text style={styles.roleSelectChevron}>{profileMenuOpen ? '⌃' : '⌄'}</Text></Pressable>{profileMenuOpen && <View style={styles.profileMenu}><Text style={styles.profileMenuTitle}>ACESSAR COMO</Text>{ROLES.map((option) => <Pressable key={option} onPress={() => { setRole(option); setProfileMenuOpen(false); }} style={[styles.profileOption, role === option && styles.profileOptionActive]}><View style={[styles.profileOptionAvatar, role === option && styles.profileOptionAvatarActive]}><Text style={[styles.profileOptionInitial, role === option && styles.profileOptionInitialActive]}>{option === 'Coordenadora' ? 'CO' : option === 'Administrador' ? 'AD' : 'PR'}</Text></View><View style={{ flex: 1 }}><Text style={[styles.profileOptionName, role === option && styles.profileOptionNameActive]}>{option}</Text><Text style={styles.profileOptionDescription}>{option === 'Coordenadora' ? 'Cadastro e acompanhamento' : option === 'Administrador' ? 'Gestão completa do sistema' : 'Presença e relatórios'}</Text></View>{role === option && <Text style={styles.profileOptionCheck}>✓</Text>}</Pressable>)}</View>}</View></View>
+        </View>
+        {compact && <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.mobileNav}>{NAV.map((item) => <Pressable key={item} onPress={() => setSection(item)} style={[styles.mobileNavItem, section === item && styles.mobileNavActive]}><Text style={[styles.mobileNavText, section === item && styles.mobileNavTextActive]}>{item}</Text></Pressable>)}</ScrollView>}
+        <ScrollView contentContainerStyle={[styles.content, compact && styles.contentCompact]}>
+          <View style={styles.welcomeRow}><View><Text style={styles.date}>QUARTA-FEIRA, 22 DE OUTUBRO DE 2026</Text><Text style={[styles.heading, compact && styles.headingCompact]}>{section === 'Visão geral' ? 'Bom dia, Marina' : section}<Text style={styles.headingLeaf}> ✳</Text></Text><Text style={styles.subheading}>Um espaço para aprender, criar e crescer juntos.</Text></View>{canManage && <Pressable onPress={() => setAdding((v) => !v)} style={styles.primaryButton}><Text style={styles.primaryPlus}>＋</Text><Text style={styles.primaryButtonText}>Novo aluno</Text></Pressable>}</View>
+          {adding && <View style={styles.addCard}><TextInput value={newName} onChangeText={setNewName} placeholder="Nome completo do aluno" placeholderTextColor="#929a91" style={styles.input} /><Pressable onPress={addStudent} style={styles.smallPrimary}><Text style={styles.smallPrimaryText}>Cadastrar</Text></Pressable><Pressable onPress={() => setAdding(false)}><Text style={styles.cancel}>Cancelar</Text></Pressable></View>}
+          {section === 'Visão geral' && <>
+            <View style={styles.statsRow}>
+              <Stat icon="♙" label="Alunos ativos" value={`${students.length}`} detail="+12% neste semestre" tint="#eaf2e7" color="#66815f" />
+              <Stat icon="✳" label="Oficinas" value="08" detail="2 novas este mês" tint="#f5eee2" color="#b88b4d" />
+              <Stat icon="✓" label="Presença média" value="92%" detail="+4% em relação ao mês passado" tint="#e8eef5" color="#607c9d" />
+              <Stat icon="♡" label="Atenção necessária" value="03" detail="Alunos com faltas recorrentes" tint="#f5e9e4" color="#bd7961" />
+            </View>
+            <View style={[styles.dashboardGrid, compact && styles.dashboardGridCompact]}>
+              <View style={[styles.card, styles.attendanceCard]}>
+                <View style={styles.cardHeading}><View><Text style={styles.cardTitle}>Frequência de hoje</Text><Text style={styles.cardSub}>Quarta-feira, 22 de outubro</Text></View><Pressable onPress={() => setSection('Frequência')}><Text style={styles.textLink}>Ver lista completa ↗</Text></Pressable></View>
+                <View style={styles.attendanceSummary}><View><Text style={styles.attendanceBig}>{students.filter((s) => s.attendance).length || 18}<Text style={styles.attendanceSlash}> / 24</Text></Text><Text style={styles.attendanceCaption}>alunos presentes</Text></View><View style={styles.progressTrack}><View style={styles.progressFill} /></View><Text style={styles.progressLabel}>75%</Text></View>
+                <View style={styles.sessionRow}><View style={[styles.sessionIcon, { backgroundColor: '#f2e9dc' }]}><Text style={{ color: '#aa895c' }}>✳</Text></View><View style={{ flex: 1 }}><Text style={styles.sessionName}>Judô • Infantil</Text><Text style={styles.sessionMeta}>Prof. Rafael · 14h às 15h</Text></View><Text style={styles.sessionCount}>12/15</Text><Text style={styles.sessionArrow}>›</Text></View>
+                <View style={styles.sessionRow}><View style={[styles.sessionIcon, { backgroundColor: '#e5edf3' }]}><Text style={{ color: '#68849b' }}>♫</Text></View><View style={{ flex: 1 }}><Text style={styles.sessionName}>Música • Violão</Text><Text style={styles.sessionMeta}>Prof. Lucas · 15h30 às 16h30</Text></View><Text style={styles.sessionCount}>6/9</Text><Text style={styles.sessionArrow}>›</Text></View>
+                <View style={styles.sessionRow}><View style={[styles.sessionIcon, { backgroundColor: '#eae9df' }]}><Text style={{ color: '#8c8c65' }}>✎</Text></View><View style={{ flex: 1 }}><Text style={styles.sessionName}>Artes • Desenho</Text><Text style={styles.sessionMeta}>Profª Clara · 16h às 17h</Text></View><Text style={styles.sessionCount}>—/8</Text><Text style={styles.sessionArrow}>›</Text></View>
+              </View>
+              <View style={styles.card}><View style={styles.cardHeading}><View><Text style={styles.cardTitle}>Agenda de hoje</Text><Text style={styles.cardSub}>4 oficinas programadas</Text></View><Text style={styles.more}>···</Text></View>
+                <Agenda time="14:00" name="Judô • Infantil" room="Quadra · Rafael Costa" tone="#829875" />
+                <Agenda time="15:30" name="Música • Violão" room="Sala 02 · Lucas Mendes" tone="#879cb0" />
+                <Agenda time="16:00" name="Artes • Desenho" room="Ateliê · Clara Souza" tone="#c19b64" />
+                <Agenda time="17:00" name="Dança • Contemporânea" room="Sala de dança · Júlia Alves" tone="#ad8a8f" last />
+              </View>
+            </View>
+          </>}
+          {section !== 'Visão geral' && <View style={styles.card}>
+            <View style={styles.cardHeading}><View><Text style={styles.cardTitle}>{section === 'Alunos' ? 'Alunos cadastrados' : section === 'Oficinas' ? 'Oficinas em andamento' : section === 'Frequência' ? 'Lista de presença' : 'Relatórios recentes'}</Text><Text style={styles.cardSub}>{section === 'Alunos' ? `${students.length} alunos • atualizado agora` : 'Acompanhe as atividades da escola'}</Text></View><View style={styles.searchBox}><Text style={{ color: '#899389' }}>⌕</Text><TextInput value={search} onChangeText={setSearch} placeholder="Buscar aluno ou oficina" placeholderTextColor="#98a198" style={styles.searchInput} /></View></View>
+            <View style={styles.tableHeader}><Text style={[styles.tableLabel, { flex: 2 }]}>ALUNO</Text><Text style={[styles.tableLabel, { flex: 1.5 }]}>OFICINA</Text><Text style={[styles.tableLabel, { flex: 0.7 }]}>IDADE</Text><Text style={[styles.tableLabel, { flex: 1 }]}>SITUAÇÃO</Text>{section === 'Frequência' && <Text style={[styles.tableLabel, { width: 95 }]}>PRESENÇA</Text>}</View>
+            {filtered.map((s) => <View key={s.id} style={styles.studentRow}><View style={styles.studentPerson}><View style={styles.studentAvatar}><Text style={styles.studentInitial}>{s.initials}</Text></View><Text style={styles.studentName}>{s.name}</Text></View><Text style={[styles.studentCell, { flex: 1.5 }]}>{s.group}</Text><Text style={[styles.studentCell, { flex: 0.7 }]}>{s.age} anos</Text><View style={{ flex: 1 }}><Text style={[styles.statusPill, s.status === 'Atenção' && styles.statusAttention]}>{s.status}</Text></View>{section === 'Frequência' && <Pressable onPress={() => setPresence(s.id)} style={[styles.presenceButton, s.attendance && styles.presentButton]}><Text style={[styles.presenceText, s.attendance && styles.presentText]}>{s.attendance ? 'Presente' : 'Marcar'}</Text></Pressable>}</View>)}
+            {filtered.length === 0 && <Text style={styles.empty}>Nenhum aluno encontrado.</Text>}
+          </View>}
+          {section === 'Visão geral' && <View style={[styles.card, styles.recentCard]}><View style={styles.cardHeading}><View><Text style={styles.cardTitle}>Alunos recentes</Text><Text style={styles.cardSub}>Veja quem chegou por aqui</Text></View><Pressable onPress={() => setSection('Alunos')}><Text style={styles.textLink}>Ver todos ↗</Text></Pressable></View><View style={styles.tableHeader}><Text style={[styles.tableLabel, { flex: 2 }]}>ALUNO</Text><Text style={[styles.tableLabel, { flex: 1.5 }]}>OFICINA</Text><Text style={[styles.tableLabel, { flex: 0.7 }]}>IDADE</Text><Text style={[styles.tableLabel, { flex: 1 }]}>SITUAÇÃO</Text></View>{students.slice(0, 4).map((s) => <View key={s.id} style={styles.studentRow}><View style={styles.studentPerson}><View style={styles.studentAvatar}><Text style={styles.studentInitial}>{s.initials}</Text></View><Text style={styles.studentName}>{s.name}</Text></View><Text style={[styles.studentCell, { flex: 1.5 }]}>{s.group}</Text><Text style={[styles.studentCell, { flex: 0.7 }]}>{s.age} anos</Text><View style={{ flex: 1 }}><Text style={[styles.statusPill, s.status === 'Atenção' && styles.statusAttention]}>{s.status}</Text></View></View>)}</View>}
+          <Text style={styles.footer}>Ateliê · Gestão Escolar <Text style={{ color: '#c4c9c2' }}>  •  </Text> Um lugar para florescer.</Text>
+        </ScrollView>
+      </View>
+    </View>
+  </SafeAreaView>;
 }
 
+function Stat({ icon, label, value, detail, tint, color }: { icon: string; label: string; value: string; detail: string; tint: string; color: string }) { return <View style={styles.statCard}><View style={styles.statTop}><Text style={styles.statLabel}>{label}</Text><View style={[styles.statIcon, { backgroundColor: tint }]}><Text style={{ color, fontSize: 15 }}>{icon}</Text></View></View><Text style={styles.statValue}>{value}</Text><Text style={styles.statDetail}>{detail}</Text></View>; }
+function Agenda({ time, name, room, tone, last }: { time: string; name: string; room: string; tone: string; last?: boolean }) { return <View style={[styles.agendaRow, last && { borderBottomWidth: 0 }]}><Text style={styles.agendaTime}>{time}</Text><View style={[styles.agendaLine, { backgroundColor: tone }]} /><View><Text style={styles.agendaName}>{name}</Text><Text style={styles.agendaRoom}>{room}</Text></View></View>; }
+
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    flexDirection: 'row',
-  },
-  safeArea: {
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    alignItems: 'center',
-    gap: Spacing.three,
-    paddingBottom: BottomTabInset + Spacing.three,
-    maxWidth: MaxContentWidth,
-  },
-  heroSection: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    gap: Spacing.four,
-  },
-  title: {
-    textAlign: 'center',
-  },
-  code: {
-    textTransform: 'uppercase',
-  },
-  stepContainer: {
-    gap: Spacing.three,
-    alignSelf: 'stretch',
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.four,
-    borderRadius: Spacing.four,
-  },
+  safe: { flex: 1, backgroundColor: '#f7f8f5' }, shell: { flex: 1, flexDirection: 'row', maxWidth: 1600, width: '100%', alignSelf: 'center' }, shellCompact: { flexDirection: 'column' }, sidebar: { width: 244, backgroundColor: '#fff', borderRightWidth: 1, borderRightColor: '#edf0eb', paddingHorizontal: 20, paddingTop: 28, paddingBottom: 18 }, brand: { flexDirection: 'row', alignItems: 'center', gap: 11, marginBottom: 48 }, brandMark: { width: 39, height: 39, borderRadius: 13, backgroundColor: '#64795f', alignItems: 'center', justifyContent: 'center' }, brandIcon: { fontSize: 22, color: '#fff' }, brandName: { fontSize: 21, fontWeight: '700', letterSpacing: -.6, color: '#303a31' }, brandCaption: { fontSize: 9, letterSpacing: 1.5, color: '#98a095', marginTop: 2, fontWeight: '600' }, navLabel: { fontSize: 9, letterSpacing: 1.4, color: '#a4aca2', fontWeight: '700', marginBottom: 13, marginLeft: 9 }, navItem: { height: 44, borderRadius: 10, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, marginBottom: 5, gap: 12 }, navActive: { backgroundColor: '#edf2eb' }, navGlyph: { fontSize: 18, color: '#879187', width: 19, textAlign: 'center' }, navGlyphActive: { color: '#60765b' }, navText: { fontSize: 13, color: '#727c72', fontWeight: '500', flex: 1 }, navTextActive: { color: '#53694e', fontWeight: '700' }, navCount: { backgroundColor: '#dde7da', color: '#60765b', fontSize: 10, fontWeight: '700', paddingHorizontal: 7, paddingVertical: 3, borderRadius: 9, overflow: 'hidden' }, sidebarBottom: { marginTop: 'auto', borderTopWidth: 1, borderTopColor: '#edf0eb', paddingTop: 17, flexDirection: 'row', alignItems: 'center', gap: 10 }, helpIcon: { width: 31, height: 31, borderRadius: 11, backgroundColor: '#f0f3ee', alignItems: 'center', justifyContent: 'center' }, helpTitle: { fontSize: 11, fontWeight: '700', color: '#4a5549' }, helpCopy: { fontSize: 10, color: '#939c92', marginTop: 3 }, chevron: { marginLeft: 'auto', fontSize: 20, color: '#9aa39a' }, main: { flex: 1, minWidth: 0 }, topbar: { height: 76, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#edf0eb', paddingHorizontal: 34, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, topbarCompact: { height: 58, paddingHorizontal: 18 }, breadcrumb: { fontSize: 9, color: '#70806d', fontWeight: '700', letterSpacing: 1.1 }, topActions: { flexDirection: 'row', alignItems: 'center', gap: 13 }, iconButton: { width: 34, height: 34, borderRadius: 12, backgroundColor: '#f5f7f3', alignItems: 'center', justifyContent: 'center' }, bell: { fontSize: 19, color: '#69766a' }, dot: { position: 'absolute', right: 8, top: 7, width: 6, height: 6, borderRadius: 4, backgroundColor: '#c68063' }, topDivider: { height: 30, width: 1, backgroundColor: '#e9ede7', marginHorizontal: 2 }, avatar: { width: 35, height: 35, borderRadius: 13, backgroundColor: '#e5ede1', alignItems: 'center', justifyContent: 'center' }, avatarText: { fontSize: 11, color: '#637a5e', fontWeight: '700' }, userText: { marginLeft: -6 }, userName: { fontSize: 11, fontWeight: '700', color: '#414b41' }, userRole: { fontSize: 9, color: '#929a91', marginTop: 2 }, roleSelect: { paddingHorizontal: 11, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: '#e1e7de', marginLeft: 2, flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: '#fff' }, roleSelectOpen: { borderColor: '#91a48a', backgroundColor: '#f8faf7' }, roleSelectText: { fontSize: 10, color: '#64745f', fontWeight: '600' }, roleSelectChevron: { fontSize: 12, color: '#64745f' }, profilePickerWrap: { position: 'relative', zIndex: 30 }, profileMenu: { position: 'absolute', top: 43, right: 0, width: 246, backgroundColor: '#fff', borderWidth: 1, borderColor: '#e8ece5', borderRadius: 12, padding: 8, elevation: 12, shadowColor: '#293328', shadowOpacity: .12, shadowRadius: 18, shadowOffset: { width: 0, height: 8 } }, profileMenuTitle: { fontSize: 9, letterSpacing: 1.1, fontWeight: '700', color: '#9aa397', paddingHorizontal: 9, paddingTop: 7, paddingBottom: 8 }, profileOption: { flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 8, paddingVertical: 9, borderRadius: 8 }, profileOptionActive: { backgroundColor: '#f0f4ed' }, profileOptionAvatar: { width: 29, height: 29, borderRadius: 10, backgroundColor: '#f1f3ef', alignItems: 'center', justifyContent: 'center' }, profileOptionAvatarActive: { backgroundColor: '#dfe9da' }, profileOptionInitial: { fontSize: 8, color: '#838d81', fontWeight: '700' }, profileOptionInitialActive: { color: '#5d7557' }, profileOptionName: { fontSize: 11, color: '#566055', fontWeight: '600' }, profileOptionNameActive: { color: '#4c6848', fontWeight: '700' }, profileOptionDescription: { fontSize: 9, color: '#98a095', marginTop: 3 }, profileOptionCheck: { fontSize: 13, color: '#60795a', paddingHorizontal: 4 }, mobileNav: { paddingHorizontal: 15, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#edf0eb', gap: 5 }, mobileNavItem: { paddingHorizontal: 12, paddingVertical: 11, borderBottomWidth: 2, borderBottomColor: 'transparent' }, mobileNavActive: { borderBottomColor: '#64795f' }, mobileNavText: { fontSize: 11, color: '#829080' }, mobileNavTextActive: { color: '#52694e', fontWeight: '700' }, content: { paddingHorizontal: 34, paddingTop: 29, paddingBottom: 18, maxWidth: 1420, width: '100%', alignSelf: 'center' }, contentCompact: { paddingHorizontal: 17, paddingTop: 23 }, welcomeRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22 }, date: { fontSize: 9, letterSpacing: 1.1, color: '#95a092', fontWeight: '700', marginBottom: 8 }, heading: { fontSize: 28, color: '#303a31', fontWeight: '700', letterSpacing: -.8 }, headingCompact: { fontSize: 23 }, headingLeaf: { fontSize: 18, color: '#b5bd9d' }, subheading: { fontSize: 12, color: '#828b81', marginTop: 5 }, primaryButton: { height: 40, borderRadius: 10, backgroundColor: '#63795e', paddingHorizontal: 15, flexDirection: 'row', alignItems: 'center', gap: 8, elevation: 1 }, primaryPlus: { fontSize: 19, color: '#fff', marginTop: -2 }, primaryButtonText: { fontSize: 11, color: '#fff', fontWeight: '700' }, addCard: { backgroundColor: '#fff', borderRadius: 12, padding: 13, marginBottom: 18, borderWidth: 1, borderColor: '#e9ede6', flexDirection: 'row', gap: 10, alignItems: 'center' }, input: { flex: 1, height: 38, paddingHorizontal: 12, borderRadius: 8, backgroundColor: '#f7f8f5', fontSize: 12, color: '#344034' }, smallPrimary: { backgroundColor: '#63795e', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 8 }, smallPrimaryText: { fontSize: 11, color: '#fff', fontWeight: '700' }, cancel: { fontSize: 11, color: '#778276', paddingHorizontal: 4 }, statsRow: { flexDirection: 'row', gap: 14, marginBottom: 17 }, statCard: { flex: 1, minWidth: 140, backgroundColor: '#fff', borderRadius: 13, paddingHorizontal: 16, paddingVertical: 15, borderWidth: 1, borderColor: '#eef0eb' }, statTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, statLabel: { fontSize: 10, color: '#778176', fontWeight: '600' }, statIcon: { width: 31, height: 31, borderRadius: 11, alignItems: 'center', justifyContent: 'center' }, statValue: { fontSize: 26, fontWeight: '700', color: '#39443a', marginTop: 10, letterSpacing: -.6 }, statDetail: { fontSize: 9, color: '#98a095', marginTop: 4 }, dashboardGrid: { flexDirection: 'row', alignItems: 'stretch', gap: 16 }, dashboardGridCompact: { flexDirection: 'column' }, card: { flex: 1, backgroundColor: '#fff', borderRadius: 13, padding: 18, borderWidth: 1, borderColor: '#eef0eb', marginBottom: 16, minWidth: 0 }, attendanceCard: { flex: 1.2 }, cardHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 17 }, cardTitle: { fontSize: 14, fontWeight: '700', color: '#3d483e' }, cardSub: { fontSize: 10, color: '#929b91', marginTop: 4 }, textLink: { fontSize: 10, color: '#688064', fontWeight: '700' }, attendanceSummary: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#f7f8f5', padding: 13, borderRadius: 10, marginBottom: 8 }, attendanceBig: { fontSize: 22, color: '#485b45', fontWeight: '700' }, attendanceSlash: { fontSize: 14, color: '#9aa397', fontWeight: '500' }, attendanceCaption: { fontSize: 9, color: '#8b9589', marginTop: 2 }, progressTrack: { flex: 1, height: 5, backgroundColor: '#e2e8df', borderRadius: 3 }, progressFill: { width: '75%', height: 5, backgroundColor: '#80977a', borderRadius: 3 }, progressLabel: { fontSize: 10, color: '#778674', fontWeight: '700' }, sessionRow: { height: 58, flexDirection: 'row', alignItems: 'center', gap: 10, borderBottomWidth: 1, borderBottomColor: '#f0f2ee' }, sessionIcon: { width: 34, height: 34, borderRadius: 11, alignItems: 'center', justifyContent: 'center' }, sessionName: { fontSize: 11, color: '#495449', fontWeight: '700' }, sessionMeta: { fontSize: 9, color: '#98a096', marginTop: 4 }, sessionCount: { fontSize: 10, fontWeight: '700', color: '#71816e' }, sessionArrow: { fontSize: 20, color: '#abb3a8', marginLeft: 5 }, more: { fontSize: 20, color: '#8d978b', marginTop: -8 }, agendaRow: { height: 61, flexDirection: 'row', alignItems: 'center', gap: 10, borderBottomWidth: 1, borderBottomColor: '#f0f2ee' }, agendaTime: { fontSize: 10, color: '#899286', width: 39 }, agendaLine: { width: 3, height: 31, borderRadius: 3 }, agendaName: { fontSize: 10, color: '#465146', fontWeight: '700' }, agendaRoom: { fontSize: 9, color: '#9aa297', marginTop: 4 }, recentCard: { flexGrow: 0 }, tableHeader: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#edf0eb', gap: 8 }, tableLabel: { fontSize: 8, color: '#9ba398', fontWeight: '700', letterSpacing: .7 }, studentRow: { minHeight: 54, flexDirection: 'row', alignItems: 'center', gap: 8, borderBottomWidth: 1, borderBottomColor: '#f1f3ef' }, studentPerson: { flex: 2, flexDirection: 'row', alignItems: 'center', gap: 9, minWidth: 0 }, studentAvatar: { width: 29, height: 29, borderRadius: 10, backgroundColor: '#edf1e9', alignItems: 'center', justifyContent: 'center' }, studentInitial: { fontSize: 9, fontWeight: '700', color: '#74866d' }, studentName: { fontSize: 10, color: '#485248', fontWeight: '600', flexShrink: 1 }, studentCell: { fontSize: 9, color: '#7f897e' }, statusPill: { alignSelf: 'flex-start', fontSize: 8, color: '#627b5b', backgroundColor: '#edf3e9', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 9, overflow: 'hidden' }, statusAttention: { backgroundColor: '#f7eee3', color: '#ae8051' }, searchBox: { height: 34, width: 220, borderRadius: 8, backgroundColor: '#f7f8f5', paddingHorizontal: 9, flexDirection: 'row', alignItems: 'center', gap: 6 }, searchInput: { flex: 1, fontSize: 10, color: '#465146', padding: 0 }, presenceButton: { width: 75, alignItems: 'center', paddingVertical: 7, borderRadius: 8, backgroundColor: '#f1f3ef' }, presentButton: { backgroundColor: '#e9f2e5' }, presenceText: { fontSize: 9, color: '#859083' }, presentText: { color: '#60775a', fontWeight: '700' }, empty: { paddingVertical: 25, textAlign: 'center', color: '#9aa397', fontSize: 12 }, footer: { textAlign: 'center', fontSize: 9, color: '#929b91', paddingVertical: 12 }, mobileNavTextActive2: { color: '#63795e' }
 });
