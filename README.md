@@ -183,6 +183,12 @@ Exemplo do relatório exportado: [docs/prints/relatorio.pdf](docs/prints/relator
 
 A documentação com tema, modelo de dados e justificativa da persistência está em [docs/DOCUMENTACAO.md](docs/DOCUMENTACAO.md).
 
+## Integrantes
+
+- Lucas Barbosa Graciano
+- Valdênio Pantaleão
+- Pedro Pereira
+
 ## Créditos
 
-Desenvolvido por **Lucas Barbosa Graciano**, a partir da minuta do projeto *Sincronize* (Grupo Tecinfo, DLEI 2026). A logomarca pertence à Casa São Domingos Sávio. Os dados de exemplo são fictícios.
+Projeto desenvolvido a partir da minuta do projeto *Sincronize* (Grupo Tecinfo, DLEI 2026). A logomarca pertence à Casa São Domingos Sávio. Os dados de exemplo são fictícios.
