@@ -6,7 +6,7 @@
 
 ## 1. Tema
 
-A Casa São Domingos Sávio, de Campina Grande (PB), atende cerca de 60 crianças de 7 a 15 anos com oficinas, reforço escolar e refeições. As fichas dos alunos ficavam em papel, sem cópia de segurança. O app, baseado na minuta do projeto *Sincronize*, reúne tudo no celular e funciona sem internet.
+A Casa São Domingos Sávio, de Campina Grande (PB), atende cerca de 60 crianças de 7 a 15 anos com oficinas, reforço escolar e refeições. As fichas dos alunos ficavam em papel, sem cópia de segurança. O app reúne tudo no celular e funciona sem internet.
 
 | Perfil | O que faz no app |
 |---|---|
@@ -50,5 +50,3 @@ As telas (`src/app`) não escrevem SQL; chamam repositórios (`src/database`). A
 | Agenda (coordenação) | Lista de presença (professor) | Relatórios | Análise social |
 |:---:|:---:|:---:|:---:|
 | <img src="prints/agenda.png" width="150" /> | <img src="prints/lista-presen%C3%A7a.png" width="150" /> | <img src="prints/relatorio-alunos.png" width="150" /> | <img src="prints/analise-social2.png" width="150" /> |
-
-**Evolução futura:** sincronização entre dispositivos e backup na nuvem, previstos na minuta do *Sincronize*.
