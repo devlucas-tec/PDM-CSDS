@@ -147,12 +147,37 @@ As telas não escrevem SQL. Elas chamam os **repositórios** em `src/database/`,
 
 ## Capturas de tela
 
-> Adicione aqui as imagens do app rodando (pasta `docs/prints/`).
+Prints tirados do app rodando no Expo Go, com os dados de demonstração.
 
-| Login | Listagem | Ficha do aluno | Dashboard |
-|---|---|---|---|
-| [Login](docs/prints/login.png) | [Listagem](docs/prints/listagem.png) | [Ficha](docs/prints/ficha.png) | [Dashboard](docs/prints/dashboard.png) |
+### Acesso
 
+| Primeiro acesso | Login | Novo usuário (admin) |
+|:---:|:---:|:---:|
+| <img src="docs/prints/primeiroacesso.png" width="220" alt="Cadastro do primeiro administrador" /> | <img src="docs/prints/tela-login.png" width="220" alt="Tela de login" /> | <img src="docs/prints/novo-usuario.png" width="220" alt="Cadastro de usuário com escolha de perfil" /> |
+
+### Coordenação
+
+| Agenda | Planejar calendário | Oficinas |
+|:---:|:---:|:---:|
+| <img src="docs/prints/agenda.png" width="220" alt="Agenda com o calendário mensal" /> | <img src="docs/prints/planejar-calendario.png" width="220" alt="Planejamento do calendário anual" /> | <img src="docs/prints/oficinas.png" width="220" alt="Lista de oficinas" /> |
+
+| Alunos (busca e filtros) | Relatórios de comportamento | Contato realizado |
+|:---:|:---:|:---:|
+| <img src="docs/prints/alunos.png" width="220" alt="Lista de alunos com filtros" /> | <img src="docs/prints/relatorio-alunos.png" width="220" alt="Relatórios enviados pelos professores" /> | <img src="docs/prints/filtro2-relatorio-alunos.png" width="220" alt="Relatórios com contato registrado" /> |
+
+### Professor (tema claro)
+
+| Minhas aulas | Lista de presença | Relatório de comportamento |
+|:---:|:---:|:---:|
+| <img src="docs/prints/aulas-professor.png" width="220" alt="Agenda do professor" /> | <img src="docs/prints/lista-presen%C3%A7a.png" width="220" alt="Lista de presença" /> | <img src="docs/prints/relat%C3%B3rio-comportamento.png" width="220" alt="Relatório de comportamento" /> |
+
+### Análise social
+
+| Indicadores | Gráficos |
+|:---:|:---:|
+| <img src="docs/prints/analise-social.png" width="220" alt="Indicadores do dashboard" /> | <img src="docs/prints/analise-social2.png" width="220" alt="Gráficos do perfil dos alunos" /> |
+
+Exemplo do relatório exportado: [docs/prints/relatorio.pdf](docs/prints/relatorio.pdf).
 
 ## Documentação
 
