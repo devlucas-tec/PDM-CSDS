@@ -6,7 +6,7 @@
 
 Aplicativo mobile para gerenciar os alunos atendidos pela **Casa São Domingos Sávio**, instituição sem fins lucrativos de Campina Grande (PB) que acolhe cerca de 60 crianças entre 7 e 15 anos. Hoje as fichas dos alunos ficam em papel e espalhadas em arquivos digitais. O app junta tudo em um só lugar, guarda a linha do tempo de cada aluno e mostra indicadores sociais para a gestão e para a prestação de contas.
 
-Projeto 1 da disciplina **Programação para Dispositivos Móveis (2026.2)**, CST em Análise e Desenvolvimento de Sistemas, IFPB Campus Esperança. O app segue a minuta descritiva do projeto Sincronize (DLEI 2026), sem o módulo de sincronização. **Todos os dados ficam salvos apenas no aparelho.**
+Projeto 1 da disciplina **Programação para Dispositivos Móveis (2026.2)**, CST em Análise e Desenvolvimento de Sistemas, IFPB Campus Esperança. **Todos os dados ficam salvos apenas no aparelho.**
 
 ## Tema
 
@@ -191,4 +191,4 @@ A documentação com tema, modelo de dados e justificativa da persistência est�
 
 ## Créditos
 
-Projeto desenvolvido a partir da minuta do projeto *Sincronize* (Grupo Tecinfo, DLEI 2026). A logomarca pertence à Casa São Domingos Sávio. Os dados de exemplo são fictícios.
+A logomarca pertence à Casa São Domingos Sávio. Os dados de exemplo são fictícios.

@@ -10,7 +10,7 @@ type YesNoFieldProps = {
   onChange: (value: boolean) => void;
 };
 
-/** Campo booleano: só aceita "Sim" ou "Não" (regra da minuta). */
+/** Campo booleano: só aceita "Sim" ou "Não". */
 export function YesNoField({ label, value, onChange }: YesNoFieldProps) {
   const theme = useTheme();
   const options = [

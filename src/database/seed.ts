@@ -145,7 +145,7 @@ export const DEMO_STAFF: { nome: string; email: string; perfil: Perfil; telefone
   { nome: 'Marta Lima', email: 'reforco@casa.org', perfil: 'professor', telefone: '(83) 99606-7070' },
 ];
 
-/** Oficinas da Casa (minuta), com professor, local e horário semanal. */
+/** Oficinas da Casa, com professor, local e horário semanal. */
 const DEMO_WORKSHOPS = [
   { nome: 'Judô', local: 'Quadra', professor: 'judo@casa.org', dias: [1, 3], inicio: '14:00', fim: '15:00' },
   { nome: 'Educação Física', local: 'Quadra', professor: 'judo@casa.org', dias: [2, 4], inicio: '08:00', fim: '09:00' },
