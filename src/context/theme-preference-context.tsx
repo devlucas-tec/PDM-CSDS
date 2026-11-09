@@ -3,6 +3,7 @@ import { createContext, use, useCallback, useEffect, useMemo, useState, type Pro
 import { Appearance } from 'react-native';
 
 import { getPreference, setPreference } from '@/database/preferences-repository';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 
 export type ThemePreference = 'system' | 'light' | 'dark';
 
@@ -10,39 +11,67 @@ const PREFERENCE_KEY = 'tema';
 
 type ThemePreferenceValue = {
   preference: ThemePreference;
+  /** Tema efetivo: a escolha do usuário ou, em "Sistema", o tema do aparelho. */
+  colorScheme: 'light' | 'dark';
   setThemePreference: (value: ThemePreference) => Promise<void>;
 };
 
 const ThemePreferenceContext = createContext<ThemePreferenceValue | null>(null);
 
-function apply(preference: ThemePreference) {
-  Appearance.setColorScheme(preference === 'system' ? 'unspecified' : preference);
+/**
+ * No Android/iOS, repassa a escolha ao sistema para que componentes nativos
+ * (abas, alertas, teclado) também troquem de tema. Na web o `Appearance` não
+ * tem `setColorScheme`, então só o tema calculado no contexto é usado.
+ */
+function applyNative(preference: ThemePreference) {
+  if (typeof Appearance.setColorScheme !== 'function') return;
+  try {
+    Appearance.setColorScheme(preference === 'system' ? 'unspecified' : preference);
+  } catch {
+    // Sem override nativo, o app continua usando o tema calculado no contexto.
+  }
 }
 
 /** Tema claro/escuro escolhido pelo usuário, salvo no SQLite para sobreviver ao fechamento do app. */
 export function ThemePreferenceProvider({ children }: PropsWithChildren) {
   const db = useSQLiteContext();
+  const systemScheme = useColorScheme();
   const [preference, setPreferenceState] = useState<ThemePreference>('system');
 
   useEffect(() => {
-    getPreference(db, PREFERENCE_KEY).then((saved) => {
-      if (saved === 'light' || saved === 'dark' || saved === 'system') {
-        setPreferenceState(saved);
-        apply(saved);
-      }
-    });
+    let active = true;
+    getPreference(db, PREFERENCE_KEY)
+      .then((saved) => {
+        if (!active) return;
+        if (saved === 'light' || saved === 'dark' || saved === 'system') {
+          setPreferenceState(saved);
+          applyNative(saved);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
   }, [db]);
 
   const setThemePreference = useCallback(
     async (value: ThemePreference) => {
       setPreferenceState(value);
-      apply(value);
+      applyNative(value);
       await setPreference(db, PREFERENCE_KEY, value);
     },
     [db],
   );
 
-  const value = useMemo(() => ({ preference, setThemePreference }), [preference, setThemePreference]);
+  // Com override nativo ativo, o useColorScheme já devolve a escolha; na web,
+  // é a preferência salva que decide.
+  const colorScheme: 'light' | 'dark' =
+    preference === 'system' ? (systemScheme === 'dark' ? 'dark' : 'light') : preference;
+
+  const value = useMemo(
+    () => ({ preference, colorScheme, setThemePreference }),
+    [preference, colorScheme, setThemePreference],
+  );
   return <ThemePreferenceContext value={value}>{children}</ThemePreferenceContext>;
 }
 
