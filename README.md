@@ -177,6 +177,17 @@ Prints tirados do app rodando no Expo Go, com os dados de demonstração.
 |:---:|:---:|
 | <img src="docs/prints/analise-social.png" width="220" alt="Indicadores do dashboard" /> | <img src="docs/prints/analise-social2.png" width="220" alt="Gráficos do perfil dos alunos" /> |
 
+### Conta e administração
+
+| Usuários do sistema (admin) | Dados de demonstração | Tema claro |
+|:---:|:---:|:---:|
+| <img src="docs/prints/usuarios-sistema.png" width="220" alt="Lista de usuários do sistema com seus perfis" /> | <img src="docs/prints/seed.png" width="220" alt="Geração dos dados de demonstração e contas criadas" /> | <img src="docs/prints/tema-claro.png" width="220" alt="Escolha de aparência na tela de conta" /> |
+
+### Vídeos
+
+- [Primeiro acesso](docs/prints/primeiro-acesso.mp4): cadastro do primeiro administrador.
+- [Dados de demonstração](docs/prints/seed-admin.mp4): o admin gera o ano letivo fictício.
+
 Exemplo do relatório exportado: [docs/prints/relatorio.pdf](docs/prints/relatorio.pdf).
 
 ## Documentação
