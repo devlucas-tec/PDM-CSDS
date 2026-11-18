@@ -1,26 +1,33 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
+import { newId } from '@/lib/id';
 import { nowIso } from '@/lib/format';
+import { enqueueId } from '@/sync/outbox';
 
 export type AuditAction = 'criar' | 'editar' | 'excluir' | 'login' | 'logout';
 
 export async function logAudit(
   db: SQLiteDatabase,
-  entry: { usuarioId: number | null; acao: AuditAction; entidade: string; entidadeId?: number | null; descricao?: string },
+  entry: { usuarioId: string | null; acao: AuditAction; entidade: string; entidadeId?: string | null; descricao?: string },
 ) {
+  const id = newId();
+  const now = nowIso();
   await db.runAsync(
-    'INSERT INTO auditoria (usuario_id, acao, entidade, entidade_id, descricao, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+    'INSERT INTO auditoria (id, usuario_id, acao, entidade, entidade_id, descricao, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    id,
     entry.usuarioId,
     entry.acao,
     entry.entidade,
     entry.entidadeId ?? null,
     entry.descricao ?? null,
-    nowIso(),
+    now,
+    now,
   );
+  await enqueueId(db, 'auditoria', 'inserir', id);
 }
 
 export type AuditEntry = {
-  id: number;
+  id: string;
   acao: AuditAction;
   entidade: string;
   descricao: string | null;

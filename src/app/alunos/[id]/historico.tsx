@@ -23,7 +23,7 @@ import { hasErrors, validateHistory, type FieldErrors, type HistoryFormValues } 
 
 export default function NewHistoryScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const studentId = Number(id);
+  const studentId = String(id);
   const db = useSQLiteContext();
   const theme = useTheme();
   const user = useCurrentUser();

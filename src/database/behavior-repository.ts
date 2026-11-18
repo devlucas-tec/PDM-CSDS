@@ -4,7 +4,10 @@ import { logAudit } from '@/database/audit-repository';
 import { canAccessClass, type Actor } from '@/database/class-repository';
 import { DomainError } from '@/database/errors';
 import type { RelatorioDetalhado, StatusRelatorio } from '@/database/types';
+import { insertHistory } from '@/database/history-repository';
 import { nowIso, todayIso } from '@/lib/format';
+import { newId } from '@/lib/id';
+import { enqueueId } from '@/sync/outbox';
 import { isGestor } from '@/lib/permissions';
 
 const DETAIL_SQL = `
@@ -18,14 +21,14 @@ const DETAIL_SQL = `
 
 export type ReportFilters = {
   status?: StatusRelatorio | null;
-  alunoId?: number | null;
-  professorId?: number | null;
-  aulaId?: number | null;
+  alunoId?: string | null;
+  professorId?: string | null;
+  aulaId?: string | null;
 };
 
 export function listReports(db: SQLiteDatabase, filters: ReportFilters = {}) {
   const where: string[] = [];
-  const params: (string | number)[] = [];
+  const params: string[] = [];
   if (filters.status) {
     where.push('r.status = ?');
     params.push(filters.status);
@@ -48,7 +51,7 @@ export function listReports(db: SQLiteDatabase, filters: ReportFilters = {}) {
   );
 }
 
-export function getReport(db: SQLiteDatabase, id: number) {
+export function getReport(db: SQLiteDatabase, id: string) {
   return db.getFirstAsync<RelatorioDetalhado>(`${DETAIL_SQL} WHERE r.id = ?`, id);
 }
 
@@ -60,7 +63,7 @@ export async function countNewReports(db: SQLiteDatabase) {
 /** O professor registra um relato sobre o comportamento do aluno na aula. */
 export async function createReport(
   db: SQLiteDatabase,
-  input: { alunoId: number; aulaId: number; texto: string },
+  input: { alunoId: string; aulaId: string; texto: string },
   actor: Actor,
   createdAt = nowIso(),
 ) {
@@ -78,11 +81,12 @@ export async function createReport(
   );
   if (!enrolled) throw new DomainError('Este aluno não faz parte desta oficina.');
 
-  let id = 0;
+  const id = newId();
   await db.withTransactionAsync(async () => {
-    const result = await db.runAsync(
-      `INSERT INTO relatorios_comportamento (aluno_id, aula_id, professor_id, texto, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?)`,
+    await db.runAsync(
+      `INSERT INTO relatorios_comportamento (id, aluno_id, aula_id, professor_id, texto, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      id,
       input.alunoId,
       input.aulaId,
       actor.id,
@@ -90,7 +94,8 @@ export async function createReport(
       createdAt,
       createdAt,
     );
-    id = result.lastInsertRowId;
+    // "inserir": o relatório é imutável, então reenviar nunca sobrescreve.
+    await enqueueId(db, 'relatorios_comportamento', 'inserir', id);
     await logAudit(db, { usuarioId: actor.id, acao: 'criar', entidade: 'relatorio', entidadeId: id });
   });
   return id;
@@ -101,20 +106,23 @@ function assertGestor(actor: Actor) {
 }
 
 /** A coordenação marca o relatório como lido (ao abrir). */
-export async function markReportRead(db: SQLiteDatabase, id: number, actor: Actor) {
+export async function markReportRead(db: SQLiteDatabase, id: string, actor: Actor) {
   assertGestor(actor);
-  await db.runAsync(
-    "UPDATE relatorios_comportamento SET status = 'lido', updated_at = ? WHERE id = ? AND status = 'novo'",
-    nowIso(),
-    id,
-  );
+  await db.withTransactionAsync(async () => {
+    const result = await db.runAsync(
+      "UPDATE relatorios_comportamento SET status = 'lido', updated_at = ? WHERE id = ? AND status = 'novo'",
+      nowIso(),
+      id,
+    );
+    if (result.changes > 0) await enqueueId(db, 'relatorios_comportamento', 'salvar', id);
+  });
 }
 
 /**
  * A coordenação registra que entrou em contato com os responsáveis. O contato
  * também entra no histórico do aluno, para ficar na linha do tempo.
  */
-export async function registerGuardianContact(db: SQLiteDatabase, id: number, observacao: string, actor: Actor) {
+export async function registerGuardianContact(db: SQLiteDatabase, id: string, observacao: string, actor: Actor) {
   assertGestor(actor);
   const texto = observacao.trim();
   if (texto.length < 5) throw new DomainError('Descreva o contato realizado.', 'observacao');
@@ -129,15 +137,15 @@ export async function registerGuardianContact(db: SQLiteDatabase, id: number, ob
       now,
       id,
     );
-    await db.runAsync(
-      'INSERT INTO historico (aluno_id, tipo, descricao, data_evento, usuario_id, created_at) VALUES (?, ?, ?, ?, ?, ?)',
-      report.aluno_id,
-      'Acompanhamento social',
-      `Contato com responsáveis sobre relatório de comportamento${report.oficina_nome ? ` (${report.oficina_nome})` : ''}: ${texto}`,
-      todayIso(),
-      actor.id,
-      now,
-    );
+    await enqueueId(db, 'relatorios_comportamento', 'salvar', id);
+    await insertHistory(db, {
+      alunoId: report.aluno_id,
+      tipo: 'Acompanhamento social',
+      descricao: `Contato com responsáveis sobre relatório de comportamento${report.oficina_nome ? ` (${report.oficina_nome})` : ''}: ${texto}`,
+      dataEvento: todayIso(),
+      usuarioId: actor.id,
+      createdAt: now,
+    });
     await logAudit(db, { usuarioId: actor.id, acao: 'editar', entidade: 'relatorio', entidadeId: id, descricao: 'Contato com responsáveis' });
   });
 }

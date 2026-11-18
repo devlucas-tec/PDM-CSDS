@@ -5,12 +5,13 @@ import { canAccessClass, getClass, type Actor } from '@/database/class-repositor
 import { DomainError } from '@/database/errors';
 import type { ChamadaItem, FrequenciaOficina } from '@/database/types';
 import { nowIso, todayIso } from '@/lib/format';
+import { enqueue } from '@/sync/outbox';
 
 /**
  * Lista de chamada: alunos matriculados na oficina da aula (e quem tiver
  * presença registrada nela, mesmo que tenha saído da oficina depois).
  */
-export function getAttendanceList(db: SQLiteDatabase, aulaId: number) {
+export function getAttendanceList(db: SQLiteDatabase, aulaId: string) {
   return db.getAllAsync<ChamadaItem>(
     `SELECT al.id AS aluno_id, al.nome, al.nome_social, al.data_nascimento, p.presente,
        (SELECT COUNT(*) FROM relatorios_comportamento r WHERE r.aluno_id = al.id AND r.aula_id = ?) AS relatorios
@@ -29,7 +30,7 @@ export function getAttendanceList(db: SQLiteDatabase, aulaId: number) {
 }
 
 /** Motivo pelo qual a chamada não pode ser feita agora, ou null se pode. */
-export async function attendanceBlockReason(db: SQLiteDatabase, aulaId: number, actor: Actor, today = todayIso()) {
+export async function attendanceBlockReason(db: SQLiteDatabase, aulaId: string, actor: Actor, today = todayIso()) {
   const aula = await getClass(db, aulaId);
   if (!aula) return 'Aula não encontrada.';
   if (!(await canAccessClass(db, actor, aulaId))) return 'Você não está vinculado a esta oficina.';
@@ -40,8 +41,8 @@ export async function attendanceBlockReason(db: SQLiteDatabase, aulaId: number, 
 
 export async function saveAttendance(
   db: SQLiteDatabase,
-  aulaId: number,
-  entries: { alunoId: number; presente: boolean }[],
+  aulaId: string,
+  entries: { alunoId: string; presente: boolean }[],
   actor: Actor,
 ) {
   const blocked = await attendanceBlockReason(db, aulaId, actor);
@@ -61,6 +62,7 @@ export async function saveAttendance(
         actor.id,
         now,
       );
+      await enqueue(db, 'presencas', 'salvar', { aula_id: aulaId, aluno_id: entry.alunoId });
     }
     const presentes = entries.filter((e) => e.presente).length;
     await logAudit(db, {
@@ -74,7 +76,7 @@ export async function saveAttendance(
 }
 
 /** Frequência de um aluno, por oficina. */
-export function getStudentAttendance(db: SQLiteDatabase, alunoId: number) {
+export function getStudentAttendance(db: SQLiteDatabase, alunoId: string) {
   return db.getAllAsync<FrequenciaOficina>(
     `SELECT o.id AS oficina_id, o.nome AS oficina_nome, COUNT(*) AS total, SUM(p.presente) AS presentes
      FROM presencas p JOIN aulas a ON a.id = p.aula_id JOIN oficinas o ON o.id = a.oficina_id
@@ -84,10 +86,10 @@ export function getStudentAttendance(db: SQLiteDatabase, alunoId: number) {
   );
 }
 
-export type AttendanceEntry = { aula_id: number; data: string; oficina_nome: string; presente: 0 | 1 };
+export type AttendanceEntry = { aula_id: string; data: string; oficina_nome: string; presente: 0 | 1 };
 
 /** Últimas chamadas em que o aluno apareceu (presença ou falta). */
-export function getRecentAttendance(db: SQLiteDatabase, alunoId: number, limit = 8) {
+export function getRecentAttendance(db: SQLiteDatabase, alunoId: string, limit = 8) {
   return db.getAllAsync<AttendanceEntry>(
     `SELECT a.id AS aula_id, a.data, o.nome AS oficina_nome, p.presente
      FROM presencas p JOIN aulas a ON a.id = p.aula_id JOIN oficinas o ON o.id = a.oficina_id
@@ -99,7 +101,7 @@ export function getRecentAttendance(db: SQLiteDatabase, alunoId: number, limit =
 
 /** Totais de presença por aluno (usado no dashboard). */
 export async function getAttendanceTotals(db: SQLiteDatabase) {
-  const rows = await db.getAllAsync<{ aluno_id: number; total: number; presentes: number }>(
+  const rows = await db.getAllAsync<{ aluno_id: string; total: number; presentes: number }>(
     'SELECT aluno_id, COUNT(*) AS total, SUM(presente) AS presentes FROM presencas GROUP BY aluno_id',
   );
   return new Map(rows.map((row) => [row.aluno_id, { total: row.total, presentes: row.presentes }]));

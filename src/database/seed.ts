@@ -5,9 +5,10 @@ import { createReport, markReportRead, registerGuardianContact } from '@/databas
 import { planClasses, updateClass, type Actor } from '@/database/class-repository';
 import { createStudent } from '@/database/student-repository';
 import type { AlunoInput, Perfil, SimNao } from '@/database/types';
-import { createUser } from '@/database/user-repository';
+import { findUserByEmail } from '@/database/user-repository';
 import { getWorkshop, saveWorkshop } from '@/database/workshop-repository';
 import { nowIso, todayIso } from '@/lib/format';
+import { enqueueRow } from '@/sync/outbox';
 
 /**
  * Dados fictícios para demonstração (vídeo e apresentação). Nenhum dado real
@@ -56,9 +57,9 @@ function generateCpf(random: { int: (min: number, max: number) => number }) {
 type Random = ReturnType<typeof createRandom>;
 
 /** Cadastra alunos fictícios e devolve os ids com a data de cadastro de cada um. */
-async function seedStudents(db: SQLiteDatabase, userId: number, random: Random, count: number) {
+async function seedStudents(db: SQLiteDatabase, userId: string, random: Random, count: number) {
   const currentYear = new Date().getFullYear();
-  const created: { id: number; createdAt: string }[] = [];
+  const created: { id: string; createdAt: string }[] = [];
 
   for (let i = 0; i < count; i++) {
     const sexo = random.chance(0.5) ? 'M' : 'F';
@@ -191,23 +192,30 @@ const CONTACT_NOTES = [
   'Mãe veio à Casa; está ciente e vai reforçar o horário de sono.',
 ];
 
-async function ensureStaff(db: SQLiteDatabase, createdBy: number) {
-  const ids = new Map<string, number>();
+/** Cria uma conta da equipe (no app real, pela Edge Function; exige internet). */
+export type CreateStaff = (person: (typeof DEMO_STAFF)[number] & { senha: string }) => Promise<string>;
+
+async function ensureStaff(db: SQLiteDatabase, createStaff: CreateStaff) {
+  const ids = new Map<string, string>();
   for (const person of DEMO_STAFF) {
-    const existing = await db.getFirstAsync<{ id: number }>('SELECT id FROM usuarios WHERE email = ?', person.email);
-    const id = existing?.id ?? (await createUser(db, { ...person, senha: DEMO_PASSWORD }, createdBy));
+    const existing = await findUserByEmail(db, person.email);
+    const id = existing?.id ?? (await createStaff({ ...person, senha: DEMO_PASSWORD }));
     ids.set(person.email, id);
   }
   return ids;
 }
 
-/** Insere linhas em lotes (um INSERT com vários VALUES), bem mais rápido que uma a uma. */
-async function insertBatch(db: SQLiteDatabase, sqlPrefix: string, columns: number, rows: (string | number | null)[][]) {
+/** Insere linhas em lotes (um INSERT com vários VALUES) e as coloca na fila de envio. */
+async function insertBatch(db: SQLiteDatabase, table: 'presencas', columns: string[], rows: (string | number | null)[][]) {
   const chunk = 150;
-  const placeholders = `(${Array.from({ length: columns }, () => '?').join(', ')})`;
+  const placeholders = `(${columns.map(() => '?').join(', ')})`;
   for (let i = 0; i < rows.length; i += chunk) {
     const slice = rows.slice(i, i + chunk);
-    await db.runAsync(`${sqlPrefix} VALUES ${slice.map(() => placeholders).join(', ')}`, slice.flat());
+    await db.runAsync(
+      `INSERT OR IGNORE INTO ${table} (${columns.join(', ')}) VALUES ${slice.map(() => placeholders).join(', ')}`,
+      slice.flat(),
+    );
+    for (const row of slice) await enqueueRow(db, table, Object.fromEntries(columns.map((c, index) => [c, row[index]])));
   }
 }
 
@@ -225,17 +233,22 @@ export type DemoSummary = { alunos: number; aulas: number; presencas: number; re
  * remarcações e cancelamentos com justificativa, chamadas das aulas que já
  * aconteceram e relatórios de comportamento em vários estágios.
  */
-export async function seedDemoData(db: SQLiteDatabase, admin: Actor, studentCount = 40): Promise<DemoSummary> {
+export async function seedDemoData(
+  db: SQLiteDatabase,
+  admin: Actor,
+  createStaff: CreateStaff,
+  studentCount = 40,
+): Promise<DemoSummary> {
   const random = createRandom(Date.now() % 100000);
   const today = todayIso();
   const year = Number(today.slice(0, 4));
   const coordActor: Actor = { id: admin.id, perfil: 'coordenador' };
 
   const students = await seedStudents(db, admin.id, random, studentCount);
-  const staff = await ensureStaff(db, admin.id);
+  const staff = await ensureStaff(db, createStaff);
 
   // Matrícula dos novos alunos: 2 ou 3 oficinas cada (metade no reforço escolar).
-  const enrollment = new Map<string, number[]>(DEMO_WORKSHOPS.map((w) => [w.nome, []]));
+  const enrollment = new Map<string, string[]>(DEMO_WORKSHOPS.map((w) => [w.nome, []]));
   for (const s of students) {
     const target = random.int(2, 3);
     const picks = new Set<string>();
@@ -245,10 +258,10 @@ export async function seedDemoData(db: SQLiteDatabase, admin: Actor, studentCoun
   }
 
   let aulasCriadas = 0;
-  const workshopByName = new Map<string, number>();
-  const professorByWorkshop = new Map<number, number>();
+  const workshopByName = new Map<string, string>();
+  const professorByWorkshop = new Map<string, string>();
   for (const w of DEMO_WORKSHOPS) {
-    const existing = await db.getFirstAsync<{ id: number }>('SELECT id FROM oficinas WHERE nome = ?', w.nome);
+    const existing = await db.getFirstAsync<{ id: string }>('SELECT id FROM oficinas WHERE nome = ?', w.nome);
     const current = existing ? await getWorkshop(db, existing.id) : null;
     const professorId = staff.get(w.professor)!;
     const id = await saveWorkshop(
@@ -278,7 +291,7 @@ export async function seedDemoData(db: SQLiteDatabase, admin: Actor, studentCoun
   }
 
   // Cancelamentos passados e mudanças futuras, sempre com justificativa.
-  type Slot = { id: number; data: string; hora_inicio: string; hora_fim: string };
+  type Slot = { id: string; data: string; hora_inicio: string; hora_fim: string };
   const past = await db.getAllAsync<Slot>(
     `SELECT id, data, hora_inicio, hora_fim FROM aulas WHERE status = 'agendada' AND data < ?
        AND NOT EXISTS (SELECT 1 FROM presencas p WHERE p.aula_id = aulas.id) ORDER BY RANDOM() LIMIT 4`,
@@ -310,18 +323,18 @@ export async function seedDemoData(db: SQLiteDatabase, admin: Actor, studentCoun
 
   // Chamadas de todas as aulas que já aconteceram (dos alunos novos). Alguns
   // alunos faltam bem mais, para aparecerem como alerta de frequência.
-  const enrolledByWorkshop = new Map<number, number[]>();
+  const enrolledByWorkshop = new Map<string, string[]>();
   for (const [nome, ids] of enrollment) enrolledByWorkshop.set(workshopByName.get(nome)!, ids);
   const createdAt = new Map(students.map((s) => [s.id, s.createdAt]));
   const frequentAbsent = new Set(students.filter(() => random.chance(0.15)).map((s) => s.id));
-  const pastClasses = await db.getAllAsync<{ id: number; data: string; oficina_id: number }>(
+  const pastClasses = await db.getAllAsync<{ id: string; data: string; oficina_id: string }>(
     "SELECT id, data, oficina_id FROM aulas WHERE status <> 'cancelada' AND data <= ? ORDER BY data",
     today,
   );
 
   const now = nowIso();
   const presenceRows: (string | number | null)[][] = [];
-  const attended: { aulaId: number; alunoId: number; data: string; oficinaId: number }[] = [];
+  const attended: { aulaId: string; alunoId: string; data: string; oficinaId: string }[] = [];
   for (const aula of pastClasses) {
     for (const alunoId of enrolledByWorkshop.get(aula.oficina_id) ?? []) {
       if (aula.data < (createdAt.get(alunoId) ?? '')) continue;
@@ -331,7 +344,7 @@ export async function seedDemoData(db: SQLiteDatabase, admin: Actor, studentCoun
     }
   }
   await db.withTransactionAsync(async () => {
-    await insertBatch(db, 'INSERT OR IGNORE INTO presencas (aula_id, aluno_id, presente, registrado_por, updated_at)', 5, presenceRows);
+    await insertBatch(db, 'presencas', ['aula_id', 'aluno_id', 'presente', 'registrado_por', 'updated_at'], presenceRows);
   });
 
   // Relatórios de comportamento: preocupações (mais para quem falta muito) e elogios.

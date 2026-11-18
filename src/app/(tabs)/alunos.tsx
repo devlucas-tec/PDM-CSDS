@@ -12,6 +12,7 @@ import { EmptyState, LoadingState } from '@/components/ui/states';
 import { TextField } from '@/components/ui/text-field';
 import { MaxContentWidth, Radius } from '@/constants/theme';
 import { useToast } from '@/context/toast-context';
+import { useDataVersion } from '@/context/sync-context';
 import {
   listDistinctValues,
   listStudents,
@@ -34,6 +35,8 @@ const BOLSA_OPTIONS = [
 
 export default function StudentsScreen() {
   const db = useSQLiteContext();
+  // Muda quando chegam dados do servidor: a tela recarrega sozinha.
+  const dataVersion = useDataVersion();
   const theme = useTheme();
   const { showToast } = useToast();
 
@@ -80,7 +83,8 @@ export default function StudentsScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [db, debouncedSearch, serie, bairro, bolsa, sort, showToast]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- recarrega quando a sincronização traz dados novos
+  }, [db, debouncedSearch, serie, bairro, bolsa, sort, showToast, dataVersion]);
 
   // Recarrega sempre que a tela volta a ficar visível (ex.: depois de cadastrar ou editar).
   useFocusEffect(
@@ -98,10 +102,10 @@ export default function StudentsScreen() {
     setBolsa('');
   };
 
-  const openStudent = useCallback((id: number) => {
+  const openStudent = useCallback((id: string) => {
     router.push({ pathname: '/alunos/[id]', params: { id: String(id) } });
   }, []);
-  const editStudent = useCallback((id: number) => {
+  const editStudent = useCallback((id: string) => {
     router.push({ pathname: '/alunos/[id]/editar', params: { id: String(id) } });
   }, []);
 

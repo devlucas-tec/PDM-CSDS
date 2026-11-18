@@ -6,7 +6,7 @@ const today = new Date(2026, 9, 20);
 
 function aluno(overrides: Partial<Aluno>): Aluno {
   return {
-    id: 1, nome: 'Aluno', nome_social: null, cpf: null, rg: null, nacionalidade: null, pais_origem: null, sexo: 'M',
+    id: '1', nome: 'Aluno', nome_social: null, cpf: null, rg: null, nacionalidade: null, pais_origem: null, sexo: 'M',
     cor_raca: 'Parda', data_nascimento: '2016-01-01', municipio_nascimento: null, uf_nascimento: null,
     bolsa_familia: 0, possui_deficiencia: 0, descricao_deficiencia: null, nome_mae: 'Mãe', escolaridade_mae: 'Ensino médio',
     profissao_mae: null, nome_pai: null, escolaridade_pai: null, profissao_pai: null, responsavel: null,
@@ -15,7 +15,7 @@ function aluno(overrides: Partial<Aluno>): Aluno {
     ano_conclusao: null, transporte_escolar: 0, pessoas_autorizadas: null, irmaos_gemeos: null, convenio_medico: null,
     hipertensao: 0, diabetes: 0, asma: 0, tratamento_medico: null, restricao_medicamentos: null, medicamentos_controlados: null,
     restricao_alimentar: null, created_at: '2025-03-01T12:00:00.000Z', updated_at: '2025-03-01T12:00:00.000Z',
-    created_by: 1, updated_by: 1,
+    created_by: 'u1', updated_by: 'u1',
     ...overrides,
   };
 }
@@ -41,9 +41,9 @@ describe('índice de vulnerabilidade', () => {
 
 describe('dashboard', () => {
   const students = [
-    aluno({ id: 1, sexo: 'M', bolsa_familia: 1, total_pessoas_casa: 3, bairro: 'Malvinas', data_nascimento: '2019-05-01' }),
-    aluno({ id: 2, sexo: 'F', possui_deficiencia: 1, total_pessoas_casa: 6, transporte_escolar: 1, data_nascimento: '2012-01-01' }),
-    aluno({ id: 3, sexo: 'F', bolsa_familia: 1, total_pessoas_casa: 4, serie: '5º ano', created_at: '2026-02-01T12:00:00.000Z' }),
+    aluno({ id: '1', sexo: 'M', bolsa_familia: 1, total_pessoas_casa: 3, bairro: 'Malvinas', data_nascimento: '2019-05-01' }),
+    aluno({ id: '2', sexo: 'F', possui_deficiencia: 1, total_pessoas_casa: 6, transporte_escolar: 1, data_nascimento: '2012-01-01' }),
+    aluno({ id: '3', sexo: 'F', bolsa_familia: 1, total_pessoas_casa: 4, serie: '5º ano', created_at: '2026-02-01T12:00:00.000Z' }),
   ];
 
   it('calcula os indicadores principais', () => {

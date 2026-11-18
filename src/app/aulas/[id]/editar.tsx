@@ -27,7 +27,7 @@ type Field = 'data' | 'horaInicio' | 'horaFim' | 'justificativa';
 /** A coordenação remarca ou cancela uma aula, sempre com justificativa. */
 export default function EditClassScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const aulaId = Number(id);
+  const aulaId = String(id);
   const db = useSQLiteContext();
   const theme = useTheme();
   const user = useCurrentUser();

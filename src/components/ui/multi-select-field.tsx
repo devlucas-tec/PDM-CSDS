@@ -9,13 +9,13 @@ import { TextField } from '@/components/ui/text-field';
 import { Radius } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
-export type MultiOption = { id: number; label: string; detail?: string };
+export type MultiOption = { id: string; label: string; detail?: string };
 
 type MultiSelectFieldProps = {
   label: string;
   options: MultiOption[];
-  value: number[];
-  onChange: (ids: number[]) => void;
+  value: string[];
+  onChange: (ids: string[]) => void;
   emptyText?: string;
   searchable?: boolean;
   hint?: string;
@@ -34,7 +34,7 @@ export function MultiSelectField({ label, options, value, onChange, emptyText = 
     return q ? options.filter((o) => o.label.toLowerCase().includes(q)) : options;
   }, [options, query]);
 
-  const toggle = (id: number) => {
+  const toggle = (id: string) => {
     onChange(selected.has(id) ? value.filter((v) => v !== id) : [...value, id]);
   };
 

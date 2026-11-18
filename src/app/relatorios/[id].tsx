@@ -23,7 +23,7 @@ import { onlyDigits } from '@/lib/format';
 /** Coordenação lê o relatório do professor e, se precisar, contata os responsáveis. */
 export default function ReportDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const reportId = Number(id);
+  const reportId = String(id);
   const db = useSQLiteContext();
   const theme = useTheme();
   const user = useCurrentUser();

@@ -9,6 +9,7 @@ import { SelectField } from '@/components/ui/select-field';
 import { EmptyState, LoadingState } from '@/components/ui/states';
 import { MaxContentWidth } from '@/constants/theme';
 import { useToast } from '@/context/toast-context';
+import { useDataVersion } from '@/context/sync-context';
 import { countNewReports, listReports } from '@/database/behavior-repository';
 import type { RelatorioDetalhado, StatusRelatorio } from '@/database/types';
 import { useTheme } from '@/hooks/use-theme';
@@ -22,6 +23,8 @@ const FILTERS = [
 /** Relatórios de comportamento enviados pelos professores. */
 export default function ReportsScreen() {
   const db = useSQLiteContext();
+  // Muda quando chegam dados do servidor: a tela recarrega sozinha.
+  const dataVersion = useDataVersion();
   const theme = useTheme();
   const { showToast } = useToast();
   const [status, setStatus] = useState('');
@@ -44,7 +47,8 @@ export default function ReportsScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [db, status, showToast]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- recarrega quando a sincronização traz dados novos
+  }, [db, status, showToast, dataVersion]);
 
   useFocusEffect(
     useCallback(() => {
@@ -52,7 +56,7 @@ export default function ReportsScreen() {
     }, [load]),
   );
 
-  const open = useCallback((id: number) => router.push({ pathname: '/relatorios/[id]', params: { id: String(id) } }), []);
+  const open = useCallback((id: string) => router.push({ pathname: '/relatorios/[id]', params: { id: String(id) } }), []);
 
   return (
     <FlatList

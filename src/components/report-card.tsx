@@ -16,7 +16,7 @@ export const REPORT_STATUS: Record<StatusRelatorio, { label: string; tone: 'terr
 
 type ReportCardProps = {
   report: RelatorioDetalhado;
-  onPress?: (id: number) => void;
+  onPress?: (id: string) => void;
   /** Na ficha do aluno o nome dele é redundante. */
   hideStudent?: boolean;
 };

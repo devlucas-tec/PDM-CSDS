@@ -12,6 +12,7 @@ import { EmptyState, LoadingState } from '@/components/ui/states';
 import { Radius } from '@/constants/theme';
 import { useCurrentUser } from '@/context/auth-context';
 import { useToast } from '@/context/toast-context';
+import { useDataVersion } from '@/context/sync-context';
 import { attendanceBlockReason, getAttendanceList, saveAttendance } from '@/database/attendance-repository';
 import { getClass } from '@/database/class-repository';
 import { errorMessage } from '@/database/errors';
@@ -20,13 +21,15 @@ import { useTheme } from '@/hooks/use-theme';
 import { formatLongDate } from '@/lib/calendar';
 import { calculateAge } from '@/lib/format';
 
-type Marks = Record<number, boolean | undefined>;
+type Marks = Record<string, boolean | undefined>;
 
 /** Lista de presença: o professor marca quem veio e quem faltou. */
 export default function AttendanceScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const aulaId = Number(id);
+  const aulaId = String(id);
   const db = useSQLiteContext();
+  // Muda quando chegam dados do servidor: a tela recarrega sozinha.
+  const dataVersion = useDataVersion();
   const theme = useTheme();
   const user = useCurrentUser();
   const { showToast } = useToast();
@@ -59,10 +62,11 @@ export default function AttendanceScreen() {
       return () => {
         active = false;
       };
-    }, [db, aulaId, user]),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- recarrega quando a sincronização traz dados novos
+    }, [db, aulaId, user, dataVersion]),
   );
 
-  const setMark = (alunoId: number, presente: boolean) => setMarks((current) => ({ ...current, [alunoId]: presente }));
+  const setMark = (alunoId: string, presente: boolean) => setMarks((current) => ({ ...current, [alunoId]: presente }));
   const markAll = () => setMarks(Object.fromEntries(items.map((item) => [item.aluno_id, true])));
 
   const marked = items.filter((item) => marks[item.aluno_id] !== undefined).length;

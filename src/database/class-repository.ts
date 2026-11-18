@@ -5,6 +5,8 @@ import { DomainError } from '@/database/errors';
 import type { AulaDetalhada, StatusAula, Usuario } from '@/database/types';
 import { generateDates } from '@/lib/calendar';
 import { nowIso } from '@/lib/format';
+import { newId } from '@/lib/id';
+import { enqueueId } from '@/sync/outbox';
 import { isGestor } from '@/lib/permissions';
 
 /** Quem está executando a ação (para checar permissões no próprio repositório). */
@@ -22,14 +24,14 @@ const DETAIL_SQL = `
 export type ClassFilters = {
   from: string;
   to: string;
-  oficinaId?: number | null;
+  oficinaId?: string | null;
   /** Professor: só as aulas das oficinas em que ele está vinculado. */
-  professorId?: number | null;
+  professorId?: string | null;
 };
 
 export function listClasses(db: SQLiteDatabase, filters: ClassFilters) {
   const where = ['a.data BETWEEN ? AND ?'];
-  const params: (string | number)[] = [filters.from, filters.to];
+  const params: string[] = [filters.from, filters.to];
   if (filters.oficinaId) {
     where.push('a.oficina_id = ?');
     params.push(filters.oficinaId);
@@ -44,12 +46,12 @@ export function listClasses(db: SQLiteDatabase, filters: ClassFilters) {
   );
 }
 
-export function getClass(db: SQLiteDatabase, id: number) {
+export function getClass(db: SQLiteDatabase, id: string) {
   return db.getFirstAsync<AulaDetalhada>(`${DETAIL_SQL} WHERE a.id = ?`, id);
 }
 
 /** O professor só acessa aulas das oficinas em que está vinculado; gestores acessam todas. */
-export async function canAccessClass(db: SQLiteDatabase, actor: Actor, aulaId: number) {
+export async function canAccessClass(db: SQLiteDatabase, actor: Actor, aulaId: string) {
   if (isGestor(actor.perfil)) return true;
   const row = await db.getFirstAsync(
     `SELECT 1 FROM aulas a JOIN oficina_professores op ON op.oficina_id = a.oficina_id
@@ -65,7 +67,7 @@ function assertGestor(actor: Actor) {
 }
 
 export type PlanInput = {
-  oficinaId: number;
+  oficinaId: string;
   inicio: string;
   fim: string;
   diasSemana: number[];
@@ -99,8 +101,10 @@ export async function planClasses(db: SQLiteDatabase, input: PlanInput, actor: A
     const now = nowIso();
     for (const date of dates) {
       if (existing.has(date)) continue;
+      const id = newId();
       await db.runAsync(
-        'INSERT INTO aulas (oficina_id, data, hora_inicio, hora_fim, created_at, updated_at, updated_by) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        'INSERT INTO aulas (id, oficina_id, data, hora_inicio, hora_fim, created_at, updated_at, updated_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        id,
         input.oficinaId,
         date,
         input.horaInicio,
@@ -109,6 +113,7 @@ export async function planClasses(db: SQLiteDatabase, input: PlanInput, actor: A
         now,
         actor.id,
       );
+      await enqueueId(db, 'aulas', 'salvar', id);
       created++;
     }
     await logAudit(db, {
@@ -135,7 +140,7 @@ export type ClassChange = {
  * poderá comparecer). Qualquer mudança exige justificativa. A data original é
  * guardada na primeira remarcação.
  */
-export async function updateClass(db: SQLiteDatabase, id: number, change: ClassChange, actor: Actor) {
+export async function updateClass(db: SQLiteDatabase, id: string, change: ClassChange, actor: Actor) {
   assertGestor(actor);
   const current = await getClass(db, id);
   if (!current) throw new DomainError('Aula não encontrada.');
@@ -167,6 +172,7 @@ export async function updateClass(db: SQLiteDatabase, id: number, change: ClassC
       actor.id,
       id,
     );
+    await enqueueId(db, 'aulas', 'salvar', id);
     await logAudit(db, {
       usuarioId: actor.id,
       acao: 'editar',
@@ -178,13 +184,14 @@ export async function updateClass(db: SQLiteDatabase, id: number, change: ClassC
   return status;
 }
 
-export async function deleteClass(db: SQLiteDatabase, id: number, actor: Actor) {
+export async function deleteClass(db: SQLiteDatabase, id: string, actor: Actor) {
   assertGestor(actor);
   const current = await getClass(db, id);
   if (!current) throw new DomainError('Aula não encontrada.');
   if (current.total_registrados > 0) throw new DomainError('Esta aula já tem chamada registrada e não pode ser excluída.');
   await db.withTransactionAsync(async () => {
     await db.runAsync('DELETE FROM aulas WHERE id = ?', id);
+    await enqueueId(db, 'aulas', 'excluir', id);
     await logAudit(db, { usuarioId: actor.id, acao: 'excluir', entidade: 'aula', entidadeId: id, descricao: `${current.oficina_nome} ${current.data}` });
   });
 }

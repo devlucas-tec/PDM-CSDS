@@ -3,7 +3,10 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 import { logAudit } from '@/database/audit-repository';
 import { DomainError, isUniqueViolation } from '@/database/errors';
 import type { Aluno, AlunoDetalhado, AlunoInput } from '@/database/types';
+import { insertHistory } from '@/database/history-repository';
 import { nowIso, todayIso } from '@/lib/format';
+import { newId } from '@/lib/id';
+import { enqueueId } from '@/sync/outbox';
 
 /**
  * Objeto com todas as chaves de AlunoInput. Se um campo novo for adicionado ao
@@ -82,7 +85,7 @@ export function listAllStudents(db: SQLiteDatabase) {
   return db.getAllAsync<Aluno>('SELECT * FROM alunos ORDER BY nome COLLATE NOCASE');
 }
 
-export function getStudent(db: SQLiteDatabase, id: number) {
+export function getStudent(db: SQLiteDatabase, id: string) {
   return db.getFirstAsync<AlunoDetalhado>(
     `SELECT a.*, c.nome AS created_by_nome, u.nome AS updated_by_nome
      FROM alunos a
@@ -100,12 +103,12 @@ export async function listDistinctValues(db: SQLiteDatabase, column: 'bairro' | 
   return rows.map((row) => row.valor);
 }
 
-async function assertCpfAvailable(db: SQLiteDatabase, cpf: string | null, ignoreId?: number) {
+async function assertCpfAvailable(db: SQLiteDatabase, cpf: string | null, ignoreId?: string) {
   if (!cpf) return;
-  const existing = await db.getFirstAsync<{ id: number; nome: string }>(
+  const existing = await db.getFirstAsync<{ id: string; nome: string }>(
     'SELECT id, nome FROM alunos WHERE cpf = ? AND id <> ?',
     cpf,
-    ignoreId ?? -1,
+    ignoreId ?? '',
   );
   if (existing) throw new DomainError(`Este CPF já está cadastrado para ${existing.nome}.`, 'cpf');
 }
@@ -118,33 +121,32 @@ function rethrowUnique(error: unknown): never {
 export async function createStudent(
   db: SQLiteDatabase,
   input: AlunoInput,
-  userId: number,
+  userId: string,
   /** Data de cadastro; usado apenas pelos dados de exemplo. Padrão: agora. */
   createdAt = nowIso(),
 ) {
   await assertCpfAvailable(db, input.cpf);
-  let id = 0;
+  const id = newId();
   try {
     await db.withTransactionAsync(async () => {
       const now = createdAt;
-      const columns = [...FIELDS, 'created_at', 'updated_at', 'created_by', 'updated_by'];
-      const values = [...FIELDS.map((field) => input[field]), now, now, userId, userId];
-      const result = await db.runAsync(
+      const columns = ['id', ...FIELDS, 'created_at', 'updated_at', 'created_by', 'updated_by'];
+      const values = [id, ...FIELDS.map((field) => input[field]), now, now, userId, userId];
+      await db.runAsync(
         `INSERT INTO alunos (${columns.join(', ')}) VALUES (${columns.map(() => '?').join(', ')})`,
         values,
       );
-      id = result.lastInsertRowId;
+      await enqueueId(db, 'alunos', 'salvar', id);
 
       // Todo aluno começa a linha do tempo com o registro de entrada no projeto.
-      await db.runAsync(
-        'INSERT INTO historico (aluno_id, tipo, descricao, data_evento, usuario_id, created_at) VALUES (?, ?, ?, ?, ?, ?)',
-        id,
-        'Entrada no projeto',
-        `Aluno cadastrado na Casa São Domingos Sávio${input.serie ? ` (${input.serie})` : ''}.`,
-        createdAt.slice(0, 10),
-        userId,
-        now,
-      );
+      await insertHistory(db, {
+        alunoId: id,
+        tipo: 'Entrada no projeto',
+        descricao: `Aluno cadastrado na Casa São Domingos Sávio${input.serie ? ` (${input.serie})` : ''}.`,
+        dataEvento: createdAt.slice(0, 10),
+        usuarioId: userId,
+        createdAt: now,
+      });
       await logAudit(db, { usuarioId: userId, acao: 'criar', entidade: 'aluno', entidadeId: id, descricao: input.nome });
     });
   } catch (error) {
@@ -153,7 +155,7 @@ export async function createStudent(
   return id;
 }
 
-export async function updateStudent(db: SQLiteDatabase, id: number, input: AlunoInput, userId: number) {
+export async function updateStudent(db: SQLiteDatabase, id: string, input: AlunoInput, userId: string) {
   const current = await db.getFirstAsync<Aluno>('SELECT * FROM alunos WHERE id = ?', id);
   if (!current) throw new DomainError('Aluno não encontrado. Ele pode ter sido excluído.');
   await assertCpfAvailable(db, input.cpf, id);
@@ -164,6 +166,7 @@ export async function updateStudent(db: SQLiteDatabase, id: number, input: Aluno
       const assignments = [...FIELDS.map((field) => `${field} = ?`), 'updated_at = ?', 'updated_by = ?'];
       const values = [...FIELDS.map((field) => input[field]), now, userId, id];
       await db.runAsync(`UPDATE alunos SET ${assignments.join(', ')} WHERE id = ?`, values);
+      await enqueueId(db, 'alunos', 'salvar', id);
 
       // Mudanças de série e de escola entram automaticamente no histórico.
       const automatic: { tipo: string; descricao: string }[] = [];
@@ -180,15 +183,7 @@ export async function updateStudent(db: SQLiteDatabase, id: number, input: Aluno
         });
       }
       for (const entry of automatic) {
-        await db.runAsync(
-          'INSERT INTO historico (aluno_id, tipo, descricao, data_evento, usuario_id, created_at) VALUES (?, ?, ?, ?, ?, ?)',
-          id,
-          entry.tipo,
-          entry.descricao,
-          todayIso(),
-          userId,
-          now,
-        );
+        await insertHistory(db, { alunoId: id, tipo: entry.tipo, descricao: entry.descricao, dataEvento: todayIso(), usuarioId: userId, createdAt: now });
       }
       await logAudit(db, { usuarioId: userId, acao: 'editar', entidade: 'aluno', entidadeId: id, descricao: input.nome });
     });
@@ -197,11 +192,13 @@ export async function updateStudent(db: SQLiteDatabase, id: number, input: Aluno
   }
 }
 
-export async function deleteStudent(db: SQLiteDatabase, id: number, userId: number) {
+export async function deleteStudent(db: SQLiteDatabase, id: string, userId: string) {
   const current = await db.getFirstAsync<{ nome: string }>('SELECT nome FROM alunos WHERE id = ?', id);
   if (!current) throw new DomainError('Aluno não encontrado. Ele pode já ter sido excluído.');
   await db.withTransactionAsync(async () => {
+    // No servidor, a exclusão apaga em cascata histórico, matrículas, presenças e relatórios.
     await db.runAsync('DELETE FROM alunos WHERE id = ?', id);
+    await enqueueId(db, 'alunos', 'excluir', id);
     await logAudit(db, { usuarioId: userId, acao: 'excluir', entidade: 'aluno', entidadeId: id, descricao: current.nome });
   });
 }
