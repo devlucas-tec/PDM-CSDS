@@ -6,6 +6,7 @@ import { useEffect } from 'react';
 
 import { Colors } from '@/constants/theme';
 import { AuthProvider, useAuth } from '@/context/auth-context';
+import { SyncProvider } from '@/context/sync-context';
 import { ThemePreferenceProvider } from '@/context/theme-preference-context';
 import { ToastProvider } from '@/context/toast-context';
 import { DATABASE_NAME, migrateDatabase } from '@/database/schema';
@@ -19,11 +20,13 @@ export default function RootLayout() {
     <SQLiteProvider databaseName={DATABASE_NAME} onInit={migrateDatabase}>
       <ThemePreferenceProvider>
         <AuthProvider>
-          <NavigationTheme>
-            <ToastProvider>
-              <RootNavigator />
-            </ToastProvider>
-          </NavigationTheme>
+          <SyncProvider>
+            <NavigationTheme>
+              <ToastProvider>
+                <RootNavigator />
+              </ToastProvider>
+            </NavigationTheme>
+          </SyncProvider>
         </AuthProvider>
       </ThemePreferenceProvider>
     </SQLiteProvider>
@@ -93,6 +96,7 @@ function RootNavigator() {
         <Stack.Screen name="aulas/[id]/index" options={{ title: 'Aula' }} />
         <Stack.Screen name="aulas/[id]/chamada" options={{ title: 'Lista de presença' }} />
         <Stack.Screen name="aulas/[id]/relatorio" options={{ title: 'Relatório de comportamento', presentation: 'modal' }} />
+        <Stack.Screen name="sincronizacao" options={{ title: 'Sincronização' }} />
 
         {/* Coordenação e administração. */}
         <Stack.Protected guard={gestor}>

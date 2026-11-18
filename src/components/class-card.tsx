@@ -11,7 +11,7 @@ import { formatShortDate } from '@/lib/calendar';
 
 type ClassCardProps = {
   aula: AulaDetalhada;
-  onPress: (id: number) => void;
+  onPress: (id: string) => void;
   showDate?: boolean;
   today: string;
 };

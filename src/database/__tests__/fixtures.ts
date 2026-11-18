@@ -1,4 +1,9 @@
-import type { AlunoInput } from '@/database/types';
+import { randomUUID } from 'node:crypto';
+
+import type { SQLiteDatabase } from 'expo-sqlite';
+
+import type { AlunoInput, Perfil } from '@/database/types';
+import { saveLocalUser } from '@/database/user-repository';
 
 /** Aluno válido para os testes; sobrescreva só os campos que interessam. */
 export function student(overrides: Partial<AlunoInput> = {}): AlunoInput {
@@ -15,4 +20,12 @@ export function student(overrides: Partial<AlunoInput> = {}): AlunoInput {
     medicamentos_controlados: null, restricao_alimentar: 'Nenhuma',
     ...overrides,
   };
+}
+
+/** Conta da equipe na cópia local (no app, as contas chegam do servidor pela sincronização). */
+export async function addUser(db: SQLiteDatabase, user: { nome: string; email: string; perfil: Perfil }) {
+  const id = randomUUID();
+  const now = new Date().toISOString();
+  await saveLocalUser(db, { id, ...user, telefone: null, created_at: now, updated_at: now });
+  return id;
 }

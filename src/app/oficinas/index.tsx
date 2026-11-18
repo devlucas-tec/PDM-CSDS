@@ -11,16 +11,20 @@ import { MaxContentWidth, Radius } from '@/constants/theme';
 import type { OficinaResumo } from '@/database/types';
 import { listWorkshops } from '@/database/workshop-repository';
 import { useTheme } from '@/hooks/use-theme';
+import { useDataVersion } from '@/context/sync-context';
 
 export default function WorkshopsScreen() {
   const db = useSQLiteContext();
+  // Muda quando chegam dados do servidor: a tela recarrega sozinha.
+  const dataVersion = useDataVersion();
   const theme = useTheme();
   const [items, setItems] = useState<OficinaResumo[] | null>(null);
 
   useFocusEffect(
     useCallback(() => {
       listWorkshops(db).then(setItems);
-    }, [db]),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- recarrega quando a sincronização traz dados novos
+    }, [db, dataVersion]),
   );
 
   return (

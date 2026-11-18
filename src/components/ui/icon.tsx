@@ -52,6 +52,9 @@ const ICONS = {
   plan: ['calendar.badge.plus', 'event_available'],
   reschedule: ['calendar.badge.clock', 'edit_calendar'],
   attendance: ['checklist', 'checklist'],
+  cloud: ['checkmark.icloud.fill', 'cloud_done'],
+  cloudOff: ['icloud.slash', 'cloud_off'],
+  sync: ['arrow.triangle.2.circlepath', 'sync'],
 } satisfies Record<string, [SFName, AndroidSymbol]>;
 
 export type IconName = keyof typeof ICONS;

@@ -14,6 +14,7 @@ import { SelectField } from '@/components/ui/select-field';
 import { EmptyState, LoadingState } from '@/components/ui/states';
 import { MaxContentWidth } from '@/constants/theme';
 import { useToast } from '@/context/toast-context';
+import { useDataVersion } from '@/context/sync-context';
 import { getAttendanceTotals } from '@/database/attendance-repository';
 import { listAllStudents } from '@/database/student-repository';
 import type { Aluno } from '@/database/types';
@@ -23,11 +24,13 @@ import { exportDashboardPdf } from '@/services/report';
 
 export default function DashboardScreen() {
   const db = useSQLiteContext();
+  // Muda quando chegam dados do servidor: a tela recarrega sozinha.
+  const dataVersion = useDataVersion();
   const theme = useTheme();
   const { showToast } = useToast();
 
   const [students, setStudents] = useState<Aluno[]>([]);
-  const [attendance, setAttendance] = useState<Map<number, { total: number; presentes: number }>>(new Map());
+  const [attendance, setAttendance] = useState<Map<string, { total: number; presentes: number }>>(new Map());
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -46,7 +49,8 @@ export default function DashboardScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [db, showToast]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- recarrega quando a sincronização traz dados novos
+  }, [db, showToast, dataVersion]);
 
   // Atualiza os indicadores sempre que a aba é aberta (após cadastros e edições).
   useFocusEffect(

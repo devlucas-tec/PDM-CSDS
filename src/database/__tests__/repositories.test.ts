@@ -5,13 +5,14 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { addUser } from './fixtures';
 import { openTestDatabase } from './node-sqlite-adapter';
 
 import { addHistory, listHistory } from '@/database/history-repository';
 import { LATEST_VERSION, migrateDatabase } from '@/database/schema';
 import { createStudent, deleteStudent, getStudent, listStudents, updateStudent } from '@/database/student-repository';
 import type { AlunoInput } from '@/database/types';
-import { authenticate, createUser, endSession, getSessionUser, startSession } from '@/database/user-repository';
+import { listQueue } from '@/sync/outbox';
 
 jest.mock('expo-crypto', () => {
   const crypto = jest.requireActual<typeof import('node:crypto')>('node:crypto');
@@ -41,7 +42,7 @@ function student(overrides: Partial<AlunoInput> = {}): AlunoInput {
 async function setup() {
   const db = openTestDatabase();
   await migrateDatabase(db);
-  const adminId = await createUser(db, { nome: 'Ramona', email: 'ramona@casa.org', senha: 'segura123', perfil: 'admin' }, null);
+  const adminId = await addUser(db, { nome: 'Ramona', email: 'ramona@casa.org', perfil: 'admin' });
   return { db, adminId };
 }
 
@@ -55,34 +56,38 @@ describe('migrações', () => {
   });
 });
 
-describe('usuários e login', () => {
-  it('autentica com email e senha corretos e recusa senha errada', async () => {
-    const { db } = await setup();
-    expect(await authenticate(db, 'RAMONA@casa.org', 'segura123')).toMatchObject({ nome: 'Ramona', perfil: 'admin' });
-    expect(await authenticate(db, 'ramona@casa.org', 'errada000')).toBeNull();
-    expect(await authenticate(db, 'ninguem@casa.org', 'segura123')).toBeNull();
-  });
-
-  it('não guarda a senha em texto puro', async () => {
-    const { db } = await setup();
-    const row = await db.getFirstAsync<{ senha_hash: string }>('SELECT senha_hash FROM usuarios');
-    expect(row?.senha_hash).not.toContain('segura123');
-    expect(row?.senha_hash).toHaveLength(64);
-  });
-
-  it('não permite email duplicado', async () => {
+describe('fila de sincronização (offline first)', () => {
+  it('cada gravação local entra na fila, na ordem em que aconteceu', async () => {
     const { db, adminId } = await setup();
-    await expect(
-      createUser(db, { nome: 'Outra', email: 'ramona@casa.org', senha: '12345678', perfil: 'professor' }, adminId),
-    ).rejects.toThrow('Já existe um usuário com este email.');
+    const id = await createStudent(db, student(), adminId);
+    await updateStudent(db, id, student({ serie: '4º ano' }), adminId);
+    await deleteStudent(db, id, adminId);
+
+    const fila = (await listQueue(db)).map((item) => `${item.operacao} ${item.tabela}`);
+    expect(fila).toEqual([
+      'salvar alunos',
+      'inserir historico',
+      'inserir auditoria',
+      'salvar alunos',
+      'inserir historico', // mudança de série
+      'inserir auditoria',
+      'excluir alunos',
+      'inserir auditoria',
+    ]);
   });
 
-  it('mantém e encerra a sessão', async () => {
+  it('guarda uma cópia do registro no momento da alteração', async () => {
     const { db, adminId } = await setup();
-    await startSession(db, adminId);
-    expect((await getSessionUser(db))?.id).toBe(adminId);
-    await endSession(db, adminId);
-    expect(await getSessionUser(db)).toBeNull();
+    const id = await createStudent(db, student({ nome: 'Primeiro nome' }), adminId);
+    await updateStudent(db, id, student({ nome: 'Nome corrigido' }), adminId);
+    const salvos = (await listQueue(db)).filter((item) => item.tabela === 'alunos').map((item) => JSON.parse(item.dados!).nome);
+    expect(salvos).toEqual(['Primeiro nome', 'Nome corrigido']);
+  });
+
+  it('se a gravação falha, nada entra na fila (mesma transação)', async () => {
+    const { db, adminId } = await setup();
+    await expect(createStudent(db, student({ bolsa_familia: 2 as 0 }), adminId)).rejects.toThrow();
+    expect(await listQueue(db)).toHaveLength(0);
   });
 });
 
@@ -159,21 +164,21 @@ describe('histórico do aluno', () => {
 });
 
 describe('persistência', () => {
-  it('os dados continuam no arquivo depois de fechar e reabrir o banco', async () => {
+  it('os dados e a fila continuam no arquivo depois de fechar e reabrir o banco', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'csds-'));
     const file = join(dir, 'teste.db');
     try {
       const first = openTestDatabase(file);
       await migrateDatabase(first);
-      const userId = await createUser(first, { nome: 'Ramona', email: 'r@casa.org', senha: 'segura123', perfil: 'admin' }, null);
-      await startSession(first, userId);
+      const userId = await addUser(first, { nome: 'Ramona', email: 'r@casa.org', perfil: 'admin' });
       await createStudent(first, student(), userId);
       first.close();
 
       const reopened = openTestDatabase(file);
       await migrateDatabase(reopened);
       expect(await listStudents(reopened)).toHaveLength(1);
-      expect((await getSessionUser(reopened))?.email).toBe('r@casa.org');
+      // A fila também sobrevive ao fechamento do app: nada se perde sem internet.
+      expect((await listQueue(reopened)).length).toBeGreaterThan(0);
       reopened.close();
     } finally {
       rmSync(dir, { recursive: true, force: true });

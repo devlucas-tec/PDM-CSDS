@@ -8,3 +8,7 @@ export async function getPreference(db: SQLiteDatabase, key: string) {
 export async function setPreference(db: SQLiteDatabase, key: string, value: string) {
   await db.runAsync('INSERT OR REPLACE INTO preferencias (chave, valor) VALUES (?, ?)', key, value);
 }
+
+export async function deletePreference(db: SQLiteDatabase, key: string) {
+  await db.runAsync('DELETE FROM preferencias WHERE chave = ?', key);
+}

@@ -23,8 +23,8 @@ import { formatDateTime } from '@/lib/format';
 /** Relatório textual (opcional) sobre o comportamento de um aluno na aula. */
 export default function BehaviorReportScreen() {
   const { id, alunoId } = useLocalSearchParams<{ id: string; alunoId: string }>();
-  const aulaId = Number(id);
-  const studentId = Number(alunoId);
+  const aulaId = String(id);
+  const studentId = String(alunoId);
   const db = useSQLiteContext();
   const theme = useTheme();
   const user = useCurrentUser();

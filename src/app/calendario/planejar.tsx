@@ -80,7 +80,7 @@ export default function PlanCalendarScreen() {
     try {
       const created = await planClasses(
         db,
-        { oficinaId: Number(oficinaId), inicio: startIso!, fim: endIso!, diasSemana: weekdays, horaInicio, horaFim },
+        { oficinaId: String(oficinaId), inicio: startIso!, fim: endIso!, diasSemana: weekdays, horaInicio, horaFim },
         user,
       );
       showToast(created === 0 ? 'Essas datas já estavam no calendário.' : `${created} ${created === 1 ? 'aula criada' : 'aulas criadas'} no calendário.`, created === 0 ? 'info' : 'success');

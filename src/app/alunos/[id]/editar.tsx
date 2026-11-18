@@ -12,7 +12,7 @@ import type { StudentFormValues } from '@/lib/validation';
 
 export default function EditStudentScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const studentId = Number(id);
+  const studentId = String(id);
   const db = useSQLiteContext();
   const user = useCurrentUser();
   const { showToast } = useToast();

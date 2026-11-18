@@ -4,6 +4,8 @@ import { logAudit } from '@/database/audit-repository';
 import { DomainError, isUniqueViolation } from '@/database/errors';
 import type { Oficina, OficinaResumo } from '@/database/types';
 import { nowIso } from '@/lib/format';
+import { newId } from '@/lib/id';
+import { enqueue, enqueueId } from '@/sync/outbox';
 
 const SUMMARY_SQL = `
   SELECT o.*,
@@ -18,7 +20,7 @@ export function listWorkshops(db: SQLiteDatabase) {
 }
 
 /** Oficinas em que o professor está vinculado. */
-export function listTeacherWorkshops(db: SQLiteDatabase, professorId: number) {
+export function listTeacherWorkshops(db: SQLiteDatabase, professorId: string) {
   return db.getAllAsync<OficinaResumo>(
     `${SUMMARY_SQL} WHERE o.id IN (SELECT oficina_id FROM oficina_professores WHERE professor_id = ?)
      ORDER BY o.nome COLLATE NOCASE`,
@@ -27,7 +29,7 @@ export function listTeacherWorkshops(db: SQLiteDatabase, professorId: number) {
 }
 
 /** Oficinas em que o aluno está matriculado. */
-export function listStudentWorkshops(db: SQLiteDatabase, alunoId: number) {
+export function listStudentWorkshops(db: SQLiteDatabase, alunoId: string) {
   return db.getAllAsync<Oficina>(
     `SELECT o.* FROM oficinas o JOIN oficina_alunos oa ON oa.oficina_id = o.id
      WHERE oa.aluno_id = ? ORDER BY o.nome COLLATE NOCASE`,
@@ -35,12 +37,12 @@ export function listStudentWorkshops(db: SQLiteDatabase, alunoId: number) {
   );
 }
 
-export async function getWorkshop(db: SQLiteDatabase, id: number) {
+export async function getWorkshop(db: SQLiteDatabase, id: string) {
   const oficina = await db.getFirstAsync<Oficina>('SELECT * FROM oficinas WHERE id = ?', id);
   if (!oficina) return null;
   const [professores, alunos] = await Promise.all([
-    db.getAllAsync<{ id: number }>('SELECT professor_id AS id FROM oficina_professores WHERE oficina_id = ?', id),
-    db.getAllAsync<{ id: number }>('SELECT aluno_id AS id FROM oficina_alunos WHERE oficina_id = ?', id),
+    db.getAllAsync<{ id: string }>('SELECT professor_id AS id FROM oficina_professores WHERE oficina_id = ?', id),
+    db.getAllAsync<{ id: string }>('SELECT aluno_id AS id FROM oficina_alunos WHERE oficina_id = ?', id),
   ]);
   return { oficina, professorIds: professores.map((p) => p.id), alunoIds: alunos.map((a) => a.id) };
 }
@@ -49,57 +51,49 @@ export type WorkshopInput = {
   nome: string;
   descricao: string | null;
   local: string | null;
-  professorIds: number[];
-  alunoIds: number[];
+  professorIds: string[];
+  alunoIds: string[];
 };
 
-/** Cria ou atualiza a oficina e substitui os vínculos de professores e alunos. */
-export async function saveWorkshop(db: SQLiteDatabase, id: number | null, input: WorkshopInput, userId: number) {
+/** Cria ou atualiza a oficina e sincroniza os vínculos de professores e alunos. */
+export async function saveWorkshop(db: SQLiteDatabase, id: string | null, input: WorkshopInput, userId: string) {
   const nome = input.nome.trim().replace(/\s+/g, ' ');
-  const duplicate = await db.getFirstAsync<{ id: number }>(
+  const duplicate = await db.getFirstAsync<{ id: string }>(
     'SELECT id FROM oficinas WHERE nome = ? AND id <> ?',
     nome,
-    id ?? -1,
+    id ?? '',
   );
   if (duplicate) throw new DomainError('Já existe uma oficina com este nome.', 'nome');
 
-  let savedId = id ?? 0;
+  const savedId = id ?? newId();
   try {
     await db.withTransactionAsync(async () => {
       const now = nowIso();
       if (id) {
-        await db.runAsync('UPDATE oficinas SET nome = ?, descricao = ?, local = ? WHERE id = ?', nome, input.descricao, input.local, id);
-      } else {
-        const result = await db.runAsync(
-          'INSERT INTO oficinas (nome, descricao, local, created_at) VALUES (?, ?, ?, ?)',
+        await db.runAsync(
+          'UPDATE oficinas SET nome = ?, descricao = ?, local = ?, updated_at = ? WHERE id = ?',
           nome,
           input.descricao,
           input.local,
           now,
+          id,
         );
-        savedId = result.lastInsertRowId;
-      }
-
-      await db.runAsync('DELETE FROM oficina_professores WHERE oficina_id = ?', savedId);
-      for (const professorId of new Set(input.professorIds)) {
-        await db.runAsync('INSERT INTO oficina_professores (oficina_id, professor_id) VALUES (?, ?)', savedId, professorId);
-      }
-
-      // Mantém a data de matrícula de quem já estava; insere só os novos.
-      const alunoIds = [...new Set(input.alunoIds)];
-      const placeholders = alunoIds.map(() => '?').join(', ');
-      await db.runAsync(
-        `DELETE FROM oficina_alunos WHERE oficina_id = ?${alunoIds.length ? ` AND aluno_id NOT IN (${placeholders})` : ''}`,
-        [savedId, ...alunoIds],
-      );
-      for (const alunoId of alunoIds) {
+      } else {
         await db.runAsync(
-          'INSERT OR IGNORE INTO oficina_alunos (oficina_id, aluno_id, created_at) VALUES (?, ?, ?)',
+          'INSERT INTO oficinas (id, nome, descricao, local, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
           savedId,
-          alunoId,
+          nome,
+          input.descricao,
+          input.local,
+          now,
           now,
         );
       }
+      await enqueueId(db, 'oficinas', 'salvar', savedId);
+
+      // Vínculos: só envia o que mudou (removidos e novos), e cada mudança vai para a fila.
+      await syncLinks(db, 'oficina_professores', 'professor_id', savedId, input.professorIds, now);
+      await syncLinks(db, 'oficina_alunos', 'aluno_id', savedId, input.alunoIds, now);
 
       await logAudit(db, { usuarioId: userId, acao: id ? 'editar' : 'criar', entidade: 'oficina', entidadeId: savedId, descricao: nome });
     });
@@ -110,11 +104,43 @@ export async function saveWorkshop(db: SQLiteDatabase, id: number | null, input:
   return savedId;
 }
 
-export async function deleteWorkshop(db: SQLiteDatabase, id: number, userId: number) {
+async function syncLinks(
+  db: SQLiteDatabase,
+  tabela: 'oficina_professores' | 'oficina_alunos',
+  coluna: 'professor_id' | 'aluno_id',
+  oficinaId: string,
+  desired: string[],
+  now: string,
+) {
+  const current = new Set(
+    (await db.getAllAsync<{ id: string }>(`SELECT ${coluna} AS id FROM ${tabela} WHERE oficina_id = ?`, oficinaId)).map((row) => row.id),
+  );
+  const wanted = new Set(desired);
+  for (const linked of current) {
+    if (wanted.has(linked)) continue;
+    await db.runAsync(`DELETE FROM ${tabela} WHERE oficina_id = ? AND ${coluna} = ?`, oficinaId, linked);
+    await enqueue(db, tabela, 'excluir', { oficina_id: oficinaId, [coluna]: linked });
+  }
+  // Mantém a data de vínculo de quem já estava; insere só os novos.
+  for (const linked of wanted) {
+    if (current.has(linked)) continue;
+    await db.runAsync(
+      `INSERT INTO ${tabela} (oficina_id, ${coluna}, created_at, updated_at) VALUES (?, ?, ?, ?)`,
+      oficinaId,
+      linked,
+      now,
+      now,
+    );
+    await enqueue(db, tabela, 'salvar', { oficina_id: oficinaId, [coluna]: linked });
+  }
+}
+
+export async function deleteWorkshop(db: SQLiteDatabase, id: string, userId: string) {
   const oficina = await db.getFirstAsync<{ nome: string }>('SELECT nome FROM oficinas WHERE id = ?', id);
   if (!oficina) throw new DomainError('Oficina não encontrada.');
   await db.withTransactionAsync(async () => {
     await db.runAsync('DELETE FROM oficinas WHERE id = ?', id);
+    await enqueueId(db, 'oficinas', 'excluir', id);
     await logAudit(db, { usuarioId: userId, acao: 'excluir', entidade: 'oficina', entidadeId: id, descricao: oficina.nome });
   });
 }

@@ -11,8 +11,8 @@ import { calculateAge, initials } from '@/lib/format';
 
 type StudentRowProps = {
   aluno: AlunoResumo;
-  onView: (id: number) => void;
-  onEdit: (id: number) => void;
+  onView: (id: string) => void;
+  onEdit: (id: string) => void;
 };
 
 /** Linha da listagem: toque abre a ficha; o botão de lápis abre a edição. */

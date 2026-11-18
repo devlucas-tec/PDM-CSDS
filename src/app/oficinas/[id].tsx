@@ -14,7 +14,7 @@ import { confirmAsync } from '@/lib/confirm';
 
 export default function EditWorkshopScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const oficinaId = Number(id);
+  const oficinaId = String(id);
   const db = useSQLiteContext();
   const user = useCurrentUser();
   const { showToast } = useToast();

@@ -1,7 +1,7 @@
 /**
  * @jest-environment node
  */
-import { student } from './fixtures';
+import { addUser, student } from './fixtures';
 import { openTestDatabase } from './node-sqlite-adapter';
 
 import { getAttendanceList, getStudentAttendance, saveAttendance } from '@/database/attendance-repository';
@@ -9,9 +9,9 @@ import { createReport, getReport, listReports, markReportRead, registerGuardianC
 import { deleteClass, getClass, listClasses, planClasses, updateClass, type Actor } from '@/database/class-repository';
 import { listHistory } from '@/database/history-repository';
 import { MIGRATIONS, migrateDatabase } from '@/database/schema';
-import { DEMO_PASSWORD, seedDemoData } from '@/database/seed';
+import { DEMO_STAFF, seedDemoData } from '@/database/seed';
 import { createStudent } from '@/database/student-repository';
-import { authenticate, createUser } from '@/database/user-repository';
+import { findUserByEmail } from '@/database/user-repository';
 import { saveWorkshop } from '@/database/workshop-repository';
 import { generateDates } from '@/lib/calendar';
 import { todayIso } from '@/lib/format';
@@ -28,9 +28,9 @@ jest.mock('expo-crypto', () => {
 async function setup() {
   const db = openTestDatabase();
   await migrateDatabase(db);
-  const coordId = await createUser(db, { nome: 'Ramona', email: 'coord@casa.org', senha: 'segura123', perfil: 'coordenador' }, null);
-  const profId = await createUser(db, { nome: 'Rafael', email: 'judo@casa.org', senha: 'segura123', perfil: 'professor' }, coordId);
-  const outroProfId = await createUser(db, { nome: 'Clara', email: 'artes@casa.org', senha: 'segura123', perfil: 'professor' }, coordId);
+  const coordId = await addUser(db, { nome: 'Ramona', email: 'coord@casa.org', perfil: 'coordenador' });
+  const profId = await addUser(db, { nome: 'Rafael', email: 'judo@casa.org', perfil: 'professor' });
+  const outroProfId = await addUser(db, { nome: 'Clara', email: 'artes@casa.org', perfil: 'professor' });
   const coord: Actor = { id: coordId, perfil: 'coordenador' };
   const prof: Actor = { id: profId, perfil: 'professor' };
   const outroProf: Actor = { id: outroProfId, perfil: 'professor' };
@@ -56,7 +56,7 @@ describe('migração v1 → v2', () => {
     );
     await db.runAsync("INSERT INTO sessao (id, usuario_id, token, created_at) VALUES (1, 1, 't', '2026-01-01')");
 
-    await migrateDatabase(db);
+    await migrateDatabase(db, 2);
 
     const user = await db.getFirstAsync<{ perfil: string }>('SELECT perfil FROM usuarios WHERE id = 1');
     expect(user?.perfil).toBe('coordenador');
@@ -131,7 +131,7 @@ describe('chamada e relatórios', () => {
       ['Ana Clara Santos', 1],
       ['Davi Souza', 0],
     ]);
-    expect(await getStudentAttendance(db, ana)).toEqual([{ oficina_id: expect.any(Number), oficina_nome: 'Judô', total: 1, presentes: 1 }]);
+    expect(await getStudentAttendance(db, ana)).toEqual([{ oficina_id: expect.any(String), oficina_nome: 'Judô', total: 1, presentes: 1 }]);
   });
 
   it('não permite chamada de aula cancelada nem futura, e aula com chamada não pode ser excluída', async () => {
@@ -161,33 +161,28 @@ describe('chamada e relatórios', () => {
   });
 });
 
-describe('perfis', () => {
-  it('professor e coordenador entram com email e senha', async () => {
-    const { db } = await setup();
-    expect((await authenticate(db, 'judo@casa.org', 'segura123'))?.perfil).toBe('professor');
-    expect((await authenticate(db, 'coord@casa.org', 'segura123'))?.perfil).toBe('coordenador');
-  });
-});
-
 describe('dados de demonstração', () => {
   it('geram equipe, oficinas, calendário, chamadas e relatórios, e podem rodar duas vezes', async () => {
     const db = openTestDatabase();
     await migrateDatabase(db);
-    const adminId = await createUser(db, { nome: 'Admin', email: 'admin@casa.org', senha: 'segura123', perfil: 'admin' }, null);
+    const adminId = await addUser(db, { nome: 'Admin', email: 'admin@casa.org', perfil: 'admin' });
     const admin: Actor = { id: adminId, perfil: 'admin' };
 
-    const first = await seedDemoData(db, admin, 20);
+    const createStaff = (person: (typeof DEMO_STAFF)[number]) => addUser(db, person);
+    const first = await seedDemoData(db, admin, createStaff, 20);
     expect(first.alunos).toBeGreaterThan(15);
     expect(first.aulas).toBeGreaterThan(300);
     expect(first.presencas).toBeGreaterThan(0);
 
-    const second = await seedDemoData(db, admin, 5);
+    const second = await seedDemoData(db, admin, createStaff, 5);
     expect(second.aulas).toBe(0); // calendário não é duplicado
 
     const count = async (sql: string) => (await db.getFirstAsync<{ n: number }>(sql))?.n ?? 0;
     expect(await count("SELECT COUNT(*) AS n FROM usuarios WHERE perfil = 'professor'")).toBe(5);
     expect(await count('SELECT COUNT(*) AS n FROM oficinas')).toBe(9);
     expect(await count("SELECT COUNT(*) AS n FROM aulas WHERE status <> 'agendada' AND justificativa IS NULL")).toBe(0);
-    expect((await authenticate(db, 'judo@casa.org', DEMO_PASSWORD))?.perfil).toBe('professor');
+    expect((await findUserByEmail(db, 'judo@casa.org'))?.perfil).toBe('professor');
+    // Tudo o que foi gerado está na fila para ir ao servidor.
+    expect(await count('SELECT COUNT(*) AS n FROM fila_sincronizacao')).toBeGreaterThan(first.presencas);
   });
 });

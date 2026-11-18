@@ -13,6 +13,7 @@ import { EmptyState, LoadingState } from '@/components/ui/states';
 import { MaxContentWidth, Radius } from '@/constants/theme';
 import { useCurrentUser } from '@/context/auth-context';
 import { useToast } from '@/context/toast-context';
+import { useDataVersion } from '@/context/sync-context';
 import { attendanceBlockReason, getAttendanceList } from '@/database/attendance-repository';
 import { listReports } from '@/database/behavior-repository';
 import { canAccessClass, deleteClass, getClass } from '@/database/class-repository';
@@ -26,8 +27,10 @@ import { isGestor } from '@/lib/permissions';
 
 export default function ClassDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const aulaId = Number(id);
+  const aulaId = String(id);
   const db = useSQLiteContext();
+  // Muda quando chegam dados do servidor: a tela recarrega sozinha.
+  const dataVersion = useDataVersion();
   const theme = useTheme();
   const user = useCurrentUser();
   const { showToast } = useToast();
@@ -63,7 +66,8 @@ export default function ClassDetailsScreen() {
       return () => {
         active = false;
       };
-    }, [db, aulaId, user, gestor]),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- recarrega quando a sincronização traz dados novos
+    }, [db, aulaId, user, gestor, dataVersion]),
   );
 
   const handleDelete = async () => {

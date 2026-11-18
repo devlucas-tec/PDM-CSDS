@@ -14,6 +14,7 @@ import { EmptyState, LoadingState } from '@/components/ui/states';
 import { MaxContentWidth } from '@/constants/theme';
 import { useCurrentUser } from '@/context/auth-context';
 import { useToast } from '@/context/toast-context';
+import { useDataVersion } from '@/context/sync-context';
 import { listClasses } from '@/database/class-repository';
 import type { AulaDetalhada, OficinaResumo } from '@/database/types';
 import { listTeacherWorkshops, listWorkshops } from '@/database/workshop-repository';
@@ -28,6 +29,8 @@ import { isGestor } from '@/lib/permissions';
  */
 export default function AgendaScreen() {
   const db = useSQLiteContext();
+  // Muda quando chegam dados do servidor: a tela recarrega sozinha.
+  const dataVersion = useDataVersion();
   const theme = useTheme();
   const user = useCurrentUser();
   const { showToast } = useToast();
@@ -49,9 +52,9 @@ export default function AgendaScreen() {
       const range = monthRange(year, month);
       const professorId = gestor ? null : user.id;
       const [list, ws, next] = await Promise.all([
-        listClasses(db, { ...range, oficinaId: oficinaId ? Number(oficinaId) : null, professorId }),
+        listClasses(db, { ...range, oficinaId: oficinaId || null, professorId }),
         gestor ? listWorkshops(db) : listTeacherWorkshops(db, user.id),
-        listClasses(db, { from: today, to: addDays(today, 14), oficinaId: oficinaId ? Number(oficinaId) : null, professorId }),
+        listClasses(db, { from: today, to: addDays(today, 14), oficinaId: oficinaId || null, professorId }),
       ]);
       setClasses(list);
       setWorkshops(ws);
@@ -62,7 +65,8 @@ export default function AgendaScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [db, year, month, oficinaId, gestor, user.id, today, showToast]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- recarrega quando a sincronização traz dados novos
+  }, [db, year, month, oficinaId, gestor, user.id, today, showToast, dataVersion]);
 
   useFocusEffect(
     useCallback(() => {
@@ -83,7 +87,7 @@ export default function AgendaScreen() {
 
   const dayClasses = classes.filter((a) => a.data === selected);
   const pending = classes.filter((a) => a.status !== 'cancelada' && a.data <= today && a.total_registrados === 0 && a.total_matriculados > 0);
-  const openClass = useCallback((id: number) => router.push({ pathname: '/aulas/[id]', params: { id: String(id) } }), []);
+  const openClass = useCallback((id: string) => router.push({ pathname: '/aulas/[id]', params: { id: String(id) } }), []);
 
   const goToday = () => {
     const date = parseIso(today);

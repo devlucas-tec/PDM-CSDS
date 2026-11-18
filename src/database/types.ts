@@ -2,7 +2,7 @@
 export type Perfil = 'admin' | 'coordenador' | 'professor';
 
 export type Usuario = {
-  id: number;
+  id: string;
   nome: string;
   email: string;
   perfil: Perfil;
@@ -71,11 +71,11 @@ export type AlunoInput = {
 };
 
 export type Aluno = AlunoInput & {
-  id: number;
+  id: string;
   created_at: string;
   updated_at: string;
-  created_by: number | null;
-  updated_by: number | null;
+  created_by: string | null;
+  updated_by: string | null;
 };
 
 /** Aluno com os nomes de quem cadastrou e de quem alterou por último. */
@@ -85,12 +85,12 @@ export type AlunoDetalhado = Aluno & {
 };
 
 export type RegistroHistorico = {
-  id: number;
-  aluno_id: number;
+  id: string;
+  aluno_id: string;
   tipo: string;
   descricao: string;
   data_evento: string;
-  usuario_id: number | null;
+  usuario_id: string | null;
   usuario_nome: string | null;
   created_at: string;
 };
@@ -104,7 +104,7 @@ export type HistoricoInput = {
 // ---------- Oficinas, calendário, presença e comportamento ----------
 
 export type Oficina = {
-  id: number;
+  id: string;
   nome: string;
   descricao: string | null;
   local: string | null;
@@ -121,8 +121,8 @@ export type OficinaResumo = Oficina & {
 export type StatusAula = 'agendada' | 'remarcada' | 'cancelada';
 
 export type Aula = {
-  id: number;
-  oficina_id: number;
+  id: string;
+  oficina_id: string;
   data: string; // yyyy-mm-dd
   hora_inicio: string; // HH:MM
   hora_fim: string;
@@ -131,7 +131,7 @@ export type Aula = {
   justificativa: string | null;
   created_at: string;
   updated_at: string;
-  updated_by: number | null;
+  updated_by: string | null;
 };
 
 /** Aula com o nome da oficina e o andamento da chamada. */
@@ -145,7 +145,7 @@ export type AulaDetalhada = Aula & {
 };
 
 export type ChamadaItem = {
-  aluno_id: number;
+  aluno_id: string;
   nome: string;
   nome_social: string | null;
   data_nascimento: string;
@@ -157,10 +157,10 @@ export type ChamadaItem = {
 export type StatusRelatorio = 'novo' | 'lido' | 'contato_realizado';
 
 export type RelatorioComportamento = {
-  id: number;
-  aluno_id: number;
-  aula_id: number | null;
-  professor_id: number | null;
+  id: string;
+  aluno_id: string;
+  aula_id: string | null;
+  professor_id: string | null;
   texto: string;
   status: StatusRelatorio;
   observacao_coordenacao: string | null;
@@ -176,7 +176,7 @@ export type RelatorioDetalhado = RelatorioComportamento & {
 };
 
 export type FrequenciaOficina = {
-  oficina_id: number;
+  oficina_id: string;
   oficina_nome: string;
   total: number;
   presentes: number;

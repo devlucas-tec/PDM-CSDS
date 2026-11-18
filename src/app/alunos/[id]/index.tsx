@@ -15,6 +15,7 @@ import { EmptyState, LoadingState } from '@/components/ui/states';
 import { MaxContentWidth, Radius } from '@/constants/theme';
 import { useCurrentUser } from '@/context/auth-context';
 import { useToast } from '@/context/toast-context';
+import { useDataVersion } from '@/context/sync-context';
 import { errorMessage } from '@/database/errors';
 import { listHistory } from '@/database/history-repository';
 import { deleteStudent, getStudent } from '@/database/student-repository';
@@ -29,8 +30,10 @@ import { VULNERABILITY_LABEL, vulnerabilityCriteria, vulnerabilityLevel } from '
 
 export default function StudentDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const studentId = Number(id);
+  const studentId = String(id);
   const db = useSQLiteContext();
+  // Muda quando chegam dados do servidor: a tela recarrega sozinha.
+  const dataVersion = useDataVersion();
   const theme = useTheme();
   const user = useCurrentUser();
   const { showToast } = useToast();
@@ -70,7 +73,8 @@ export default function StudentDetailsScreen() {
       return () => {
         active = false;
       };
-    }, [db, studentId]),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- recarrega quando a sincronização traz dados novos
+    }, [db, studentId, dataVersion]),
   );
 
   const editHref = { pathname: '/alunos/[id]/editar', params: { id: String(studentId) } } as const;
