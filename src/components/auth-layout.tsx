@@ -33,7 +33,7 @@ export function AuthLayout({ title, subtitle, children }: AuthLayoutProps) {
               {children}
             </View>
             <AppText variant="caption" style={styles.footer}>
-              Dados armazenados apenas neste dispositivo.
+              Dados salvos no aparelho e sincronizados com a nuvem.
             </AppText>
           </View>
         </ScrollView>
