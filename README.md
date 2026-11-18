@@ -6,7 +6,10 @@
 
 Aplicativo mobile para gerenciar os alunos atendidos pela **Casa São Domingos Sávio**, instituição sem fins lucrativos de Campina Grande (PB) que acolhe cerca de 60 crianças entre 7 e 15 anos. Hoje as fichas dos alunos ficam em papel e espalhadas em arquivos digitais. O app junta tudo em um só lugar, guarda a linha do tempo de cada aluno e mostra indicadores sociais para a gestão e para a prestação de contas.
 
-Projeto 1 da disciplina **Programação para Dispositivos Móveis (2026.2)**, CST em Análise e Desenvolvimento de Sistemas, IFPB Campus Esperança. **Todos os dados ficam salvos apenas no aparelho.**
+Projetos 1 e 2 da disciplina **Programação para Dispositivos Móveis (2026.2)**, CST em Análise e Desenvolvimento de Sistemas, IFPB Campus Esperança.
+
+- **P1:** app completo com persistência local (SQLite).
+- **P2:** **backend na nuvem (Supabase)** e funcionamento **offline first**. Toda alteração é gravada primeiro no aparelho e entra numa **fila de requisições**, enviada ao servidor em ordem quando há conexão. A equipe inteira passa a compartilhar os mesmos dados, em vários aparelhos. Veja [Projeto 2: backend e offline first](#projeto-2-backend-e-offline-first).
 
 ## Tema
 
@@ -35,7 +38,7 @@ Cada aluno tem um **histórico** (linha do tempo) que não pode ser alterado. O 
 
 Também foram implementados:
 
-- **Login e perfis:** o primeiro acesso cria o administrador. Só administradores cadastram novos usuários. A senha é guardada como hash SHA-256 com salt, e a sessão continua ativa ao reabrir o app. Cada perfil vê uma parte do app:
+- **Login e perfis:** o primeiro acesso cria o administrador. Só administradores cadastram novos usuários. As contas ficam no **Supabase Auth** (P2), e a sessão continua ativa ao reabrir o app, mesmo sem internet. Cada perfil vê uma parte do app, e as mesmas regras valem no servidor (Row Level Security):
 
   | Perfil | O que acessa |
   |---|---|
@@ -64,12 +67,59 @@ Também foram implementados:
 - [x] Exportação de dados: relatório em PDF compartilhável (`expo-print` + `expo-sharing`).
 - [ ] Notificações locais.
 
+## Projeto 2: backend e offline first
+
+### Arquitetura
+
+```mermaid
+flowchart LR
+  subgraph Aparelho
+    T[Telas] --> R[Repositórios]
+    R -->|1. grava| DB[(SQLite local)]
+    R -->|2. mesma transação| F[(fila_sincronizacao)]
+    S[Sincronizador] -->|lê em ordem| F
+    S -->|aplica mudanças| DB
+  end
+  S -->|envio: upsert / delete| API[Supabase<br/>PostgREST + Auth]
+  API -->|recebimento: updated_at > cursor<br/>e exclusões| S
+  API --> PG[(Postgres<br/>RLS por perfil)]
+  APP[Cadastro de usuário] --> EF[Edge Function<br/>gerenciar-usuarios]
+  EF --> PG
+```
+
+- **As telas leem sempre do SQLite.** O app abre e funciona igual com ou sem internet.
+- **Escrita:** cada repositório grava no SQLite e, **na mesma transação**, coloca o registro na tabela `fila_sincronizacao` (padrão *outbox*). Se o app fechar no meio, ou as duas coisas ficam gravadas, ou nenhuma.
+- **Envio da fila** (`src/sync/engine.ts`): os itens vão **em ordem de criação**. Itens seguidos da mesma tabela vão num único pedido (lote), e cada item só sai da fila depois que o servidor confirma.
+  - **Sem conexão ou servidor fora do ar:** o envio para e tenta de novo com espera crescente (2 s, 4 s, 8 s… até 2 min). Também tenta assim que a internet volta (`expo-network`) e quando o app volta para a frente.
+  - **Recusa do servidor** (regra de acesso, CPF repetido): o item fica marcado com erro, aparece na tela **Sincronização** e não trava o resto da fila.
+  - **Reenvio seguro:** os IDs são UUIDs gerados no aparelho, e o envio é um *upsert* (histórico e auditoria usam "insert ou ignora"). Reenviar algo que o servidor já recebeu não duplica nada.
+- **Recebimento:** para cada tabela, o app baixa as linhas com `updated_at` maior que o último recebido. O `updated_at` vem sempre do relógio do servidor, nunca do celular. As **exclusões** feitas em outros aparelhos chegam pela tabela `exclusoes`, preenchida por trigger, inclusive as em cascata.
+- **Conflitos:** um registro com alteração local ainda na fila não é sobrescrito pelo que vem do servidor. Quando a fila é enviada, **vence a última escrita sincronizada**.
+- **O que exige internet:** só o login no aparelho pela primeira vez e o cadastro de novos usuários, porque a conta precisa existir no servidor. Todo o resto funciona offline.
+
+### Segurança no servidor
+
+As regras de perfil também valem no banco, por **Row Level Security** (`supabase/migrations/`). Assim, mesmo com a chave pública do app, ninguém lê ou altera o que o seu perfil não permite:
+
+| Tabela | Admin/Coordenação | Professor |
+|---|---|---|
+| alunos | tudo | lê só os alunos das próprias oficinas |
+| historico | lê e cria (nunca altera) | sem acesso |
+| oficinas, aulas, matrículas | tudo | lê as próprias |
+| presencas | tudo | faz a chamada das próprias aulas |
+| relatorios_comportamento | lê e acompanha | escreve sobre alunos das próprias aulas (texto imutável) |
+| usuarios | lê; cria pela Edge Function (só admin) | lê |
+
+Uma conta criada fora do app, sem perfil cadastrado pelo administrador, não vê nada.
+
 ## Tecnologias
 
 - **React Native 0.88** com **Expo SDK 58**
 - **Expo Router** para navegação por arquivos e rotas protegidas por login (`Stack.Protected`)
-- **expo-sqlite** para persistência local
-- **expo-crypto** para o hash das senhas
+- **expo-sqlite** para persistência local (dados, fila de sincronização e sessão)
+- **Supabase** (P2): Postgres com Row Level Security, Auth e Edge Function, acessados pelo `@supabase/supabase-js`
+- **expo-network** para detectar quando a conexão cai e volta
+- **expo-crypto** para gerar os UUIDs no aparelho
 - **expo-print** e **expo-sharing** para o relatório em PDF
 - **react-native-svg** para o gráfico de rosca
 - **expo-symbols** para os ícones (SF Symbols no iOS, Material Symbols no Android)
@@ -83,16 +133,21 @@ Pré-requisitos: [Node.js](https://nodejs.org) 20 ou mais recente e o app **Expo
 # 1. Instalar as dependências
 npm install
 
-# 2. Iniciar o servidor de desenvolvimento
+# 2. Configurar o backend (URL e chave pública do Supabase)
+cp .env.example .env.local
+
+# 3. Iniciar o servidor de desenvolvimento
 npx expo start
 ```
+
+O `.env.example` já aponta para o projeto Supabase da equipe. Para usar outro projeto, aplique os arquivos de `supabase/migrations/` (em ordem) no SQL Editor do Supabase, publique a função `supabase/functions/gerenciar-usuarios` e troque a URL e a chave no `.env.local`.
 
 Depois disso:
 
 - **Celular Android:** abra o Expo Go e escaneie o QR Code que aparece no terminal.
 - **Emulador Android:** com o emulador aberto, pressione `a` no terminal.
 
-No primeiro acesso, o app pede o cadastro do **administrador**. Para a demonstração, use o botão **"Gerar dados de demonstração"** na aba **Conta**. Ele cria um ano letivo fictício:
+No primeiro acesso (com internet), o app pede o cadastro do **administrador**. Para a demonstração, use o botão **"Gerar dados de demonstração"** na aba **Conta**. Ele cria um ano letivo fictício:
 
 - 40 alunos;
 - a equipe (1 coordenadora e 5 professores);
@@ -115,7 +170,7 @@ Contas de demonstração (todas com a senha `casa1234`):
 ### Outros comandos
 
 ```bash
-npm test             # testes automatizados (regras de negócio e banco SQLite)
+npm test             # testes automatizados (regras de negócio, SQLite e sincronização offline)
 npx expo lint        # lint
 npx tsc --noEmit     # verificação de tipos
 ```
@@ -134,13 +189,18 @@ src/
 │   ├── calendario/       # planejar (calendário anual)
 │   ├── oficinas/         # lista, nova, [id]
 │   ├── relatorios/       # [id] (relatório de comportamento)
+│   ├── sincronizacao.tsx # Estado da conexão e fila de envio (P2)
 │   └── usuarios/novo.tsx
 ├── components/           # Componentes de interface (formulários, gráficos, ui/)
-├── context/              # Sessão do usuário, tema e mensagens (toast)
+├── context/              # Sessão (Supabase Auth), sincronização, tema e mensagens (toast)
 ├── database/             # Camada de dados: esquema/migrações e repositórios SQLite
 ├── lib/                  # Regras puras: validação, formatação, estatísticas, vulnerabilidade
-├── services/             # Geração do relatório PDF
+├── services/             # Relatório PDF e cadastro de usuários (Edge Function)
+├── sync/                 # Offline first: fila (outbox), motor de sincronização, cliente do backend
 └── constants/            # Paleta de cores e listas de opções
+supabase/
+├── migrations/           # Esquema Postgres, triggers e regras de acesso (RLS)
+└── functions/            # Edge Function gerenciar-usuarios (cria contas da equipe)
 ```
 
 As telas não escrevem SQL. Elas chamam os **repositórios** em `src/database/`, e as regras de negócio (validação, cálculos) ficam em `src/lib/` como funções puras, cobertas por testes.
@@ -192,7 +252,9 @@ Exemplo do relatório exportado: [docs/prints/relatorio.pdf](docs/prints/relator
 
 ## Documentação
 
-A documentação com tema, modelo de dados e justificativa da persistência está em [docs/DOCUMENTACAO.md](docs/DOCUMENTACAO.md).
+- [docs/DOCUMENTACAO.md](docs/DOCUMENTACAO.md): tema, modelo de dados, persistência e, no P2, backend e sincronização.
+- [docs/ROTEIRO-VIDEO.md](docs/ROTEIRO-VIDEO.md): roteiro do vídeo de demonstração do P2.
+- [docs/APRESENTACAO.md](docs/APRESENTACAO.md): slides da apresentação em aula.
 
 ## Integrantes
 
