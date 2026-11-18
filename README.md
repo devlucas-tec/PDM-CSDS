@@ -253,7 +253,6 @@ Exemplo do relatório exportado: [docs/prints/relatorio.pdf](docs/prints/relator
 ## Documentação
 
 - [docs/DOCUMENTACAO.md](docs/DOCUMENTACAO.md): tema, modelo de dados, persistência e, no P2, backend e sincronização.
-- [docs/ROTEIRO-VIDEO.md](docs/ROTEIRO-VIDEO.md): roteiro do vídeo de demonstração do P2.
 - [docs/APRESENTACAO.md](docs/APRESENTACAO.md): slides da apresentação em aula.
 
 ## Integrantes
