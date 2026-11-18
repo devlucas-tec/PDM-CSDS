@@ -69,8 +69,20 @@ Texto para falar no vídeo. As indicações entre colchetes dizem o que mostrar 
 
 ## 4. Segundo aparelho e perfis (1 min)
 
-1. Aparelho B: entre como professor (`judo@casa.org` / `casa1234`).
-2. Mostre que ele vê só as aulas e os alunos das próprias oficinas. Explique que a regra vale no servidor (RLS), não só na tela.
+1. Aparelho B: entre como professor (`judo@casa.org` / `casa1234`). É o Rafael Costa, que dá aula de **Judô** e **Educação Física**. Com um aparelho só: **Conta → Sair** (depois de o indicador mostrar "Sincronizado") e entre como o professor.
+2. Mostre a **Agenda** nos dois aparelhos lado a lado e abra a **chamada de uma aula de Judô** no aparelho do professor.
+
+| | Admin / coordenação | Professor (judo@casa.org) |
+|---|---|---|
+| Abas | Agenda, Alunos, Relatórios, Análise, Conta | Só Agenda e Conta |
+| Agenda | Aulas das 9 oficinas | Só Judô e Educação Física |
+| Lista de presença | Qualquer aula | Só alunos matriculados nas oficinas dele |
+
+> "Agora, no segundo aparelho, vou entrar como professor, o Rafael, que dá aula de Judô e Educação Física.
+>
+> Vejam que ele só tem a agenda e a conta. Na agenda aparecem só as aulas das duas oficinas dele, enquanto a coordenação, no outro aparelho, vê as nove. E na lista de presença aparecem só os alunos matriculados nessas oficinas.
+>
+> O mais importante é que isso não é só a tela escondendo informação. Quando o professor entrou, o celular dele baixou do servidor apenas os dados que ele pode ver, porque as regras de acesso estão no próprio banco de dados, com o Row Level Security. Os alunos de outras oficinas e o histórico das crianças nem chegam a este aparelho."
 
 ## 5. Offline first: o ponto principal (2 a 3 min)
 
@@ -90,8 +102,39 @@ Texto para falar no vídeo. As indicações entre colchetes dizem o que mostrar 
 
 ## 7. Recusa do servidor (30 s, opcional)
 
-- Explique, mostrando a tela Sincronização, que, se o servidor recusar uma alteração (por exemplo, uma regra de acesso), o item fica marcado como **erro**, não trava o resto e pode ser reenviado ou descartado.
+Como provocar uma recusa real (os dois aparelhos como admin/coordenação):
+
+1. **Aparelho A:** ligue o **modo avião** e cadastre um aluno com o CPF `529.982.247-25`. O app aceita e coloca na fila.
+2. **Aparelho B (com internet):** cadastre outro aluno com o **mesmo CPF**. Ele chega primeiro ao servidor.
+3. **Aparelho A:** desligue o modo avião. O servidor recusa o aluno (CPF único no banco) e o indicador fica vermelho: **"N com erro"**.
+4. Toque no indicador para abrir a tela **Sincronização**: mostre o item com **Erro** e o motivo, e que o resto da fila foi enviado.
+5. Toque em **Descartar e baixar do servidor**. O indicador volta para **Sincronizado**.
+
+| Botão | O que faz |
+|---|---|
+| Tentar enviar de novo | Devolve os itens com erro para a fila (quando o problema já foi resolvido) |
+| Descartar e baixar do servidor | Apaga os itens recusados e baixa a versão oficial do servidor |
+
+> "Agora vou mostrar o que acontece quando o servidor recusa uma alteração. Neste aparelho, sem internet, cadastrei um aluno com um CPF. Enquanto isso, no outro aparelho, alguém cadastrou outro aluno com o mesmo CPF, e esse chegou primeiro ao servidor.
+>
+> Quando a internet volta, o servidor recusa o meu cadastro, porque o CPF tem que ser único. Vejam que o indicador ficou vermelho. Na tela de sincronização aparece o item com erro e o motivo.
+>
+> O importante é que esse erro não trava a fila: as outras alterações que fiz offline foram enviadas normalmente. E o usuário decide o que fazer: tentar enviar de novo, se o problema já foi corrigido, ou descartar e baixar do servidor a versão oficial. Vou descartar, e o app volta a ficar sincronizado."
 
 ## 8. Encerramento (30 s)
 
-- Recapitule: dados na nuvem e compartilhados, regras de acesso no servidor, tudo funciona sem internet, a fila é enviada em ordem quando a conexão volta, e há 43 testes automatizados (`npm test`), incluindo queda de conexão no meio do envio.
+> **[Na tela: o app sincronizado, ou o diagrama de arquitetura do README]**
+>
+> "Para resumir o que mudou nesta segunda versão:
+>
+> Primeiro, os dados agora ficam na nuvem, no Supabase, e são compartilhados entre os aparelhos da equipe. O que a coordenação cadastra aparece para os professores, e a chamada feita pelo professor chega para a coordenação.
+>
+> Segundo, as regras de acesso valem no servidor. Cada perfil só recebe os dados que pode ver, e o banco recusa qualquer alteração que o perfil não tem permissão de fazer.
+>
+> Terceiro, o app é offline first: tudo funciona sem internet, porque as telas usam o banco do próprio celular. Cada alteração entra numa fila, que é enviada em ordem assim que a conexão volta, sem perder nada e sem duplicar nada.
+>
+> **[Na tela: terminal rodando `npm test`, com "Tests: 43 passed"]**
+>
+> E para garantir que isso funciona, o projeto tem 43 testes automatizados. Entre eles, testes que simulam a internet caindo no meio do envio, o mesmo item sendo enviado duas vezes e dois aparelhos sincronizando entre si.
+>
+> Obrigado!"
