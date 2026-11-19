@@ -259,10 +259,11 @@ Prints tirados do app rodando no Expo Go, com os dados de demonstração.
 
 ### Vídeos
 
-- [Demonstração do P2 no YouTube](https://youtu.be/a5yAvp3g-Kg): backend e offline first.
-
-- [Primeiro acesso](docs/prints/primeiro-acesso.mp4): cadastro do primeiro administrador.
-- [Dados de demonstração](docs/prints/seed-admin.mp4): o admin gera o ano letivo fictício.
+| Vídeo | Projeto | O que mostra |
+|---|:---:|---|
+| ▶️ [Demonstração completa (YouTube)](https://youtu.be/a5yAvp3g-Kg) | P2 | Backend no Supabase, regras de acesso por perfil e offline first |
+| ▶️ [Primeiro acesso](docs/prints/primeiro-acesso.mp4) | P1 | Cadastro do primeiro administrador |
+| ▶️ [Dados de demonstração](docs/prints/seed-admin.mp4) | P1 | O admin gera o ano letivo fictício |
 
 Exemplo do relatório exportado: [docs/prints/relatorio.pdf](docs/prints/relatorio.pdf).
 
