@@ -34,11 +34,11 @@ Cada aluno tem um **histórico** (linha do tempo) que não pode ser alterado. O 
 | Requisito | Onde está no app |
 |---|---|
 | **RF01: CRUD completo** | Cadastrar, listar, ver a ficha, editar e excluir alunos. |
-| **RF02: Persistência local** | Banco SQLite (`expo-sqlite`). Alunos, usuários, sessão de login e tema continuam salvos depois de fechar o app. |
+| **RF02: Persistência local** | Banco SQLite (`expo-sqlite`). Alunos, usuários, sessão de login e tema continuam salvos depois de fechar o app. No P2, os mesmos dados também são sincronizados com o servidor (Supabase). |
 | **RF03: Listagem inteligente** | Busca por nome. Filtros por série, bairro e Bolsa Família. Ordenação por nome, data de cadastro ou idade. |
 | **RF04: Validação** | Campos obrigatórios, data real e não futura, CPF com dígito verificador, CEP, telefone, email, senha de 8 caracteres ou mais, email e CPF únicos. |
 | **RF05: Navegação** | Expo Router com telas de login, listagem, formulário, ficha (detalhe), histórico, dashboard e conta. |
-| **RF06: Feedback** | Confirmação antes de excluir. Mensagens de sucesso e erro. Erros mostrados em cada campo. Indicadores de carregamento. |
+| **RF06: Feedback** | Confirmação antes de excluir. Mensagens de sucesso e erro. Erros mostrados em cada campo. Indicadores de carregamento. No P2, indicador de sincronização em todas as abas (sincronizado, enviando, offline ou com erro). |
 
 Também foram implementados:
 

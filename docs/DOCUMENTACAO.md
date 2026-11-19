@@ -1,8 +1,8 @@
 # Casa São Domingos Sávio: App de Gestão de Alunos
 
-**Disciplina:** Programação para Dispositivos Móveis 2026.2, IFPB Campus Esperança. Prof. André Atanasio.
-**Tecnologia:** React Native + Expo SDK 58. P1: persistência local em SQLite (`expo-sqlite`). P2: backend no Supabase (Postgres, Auth, Edge Function) com sincronização offline first.
-**Versão em PDF:** [DOCUMENTACAO.pdf](DOCUMENTACAO.pdf)
+**Disciplina:** Programação para Dispositivos Móveis 2026.2, IFPB Campus Esperança. Prof. André Atanasio.  
+**Tecnologia:** React Native + Expo SDK 58. P1: persistência local em SQLite (`expo-sqlite`). P2: backend no Supabase (Postgres, Auth, Edge Function) com sincronização offline first.  
+**Versão em PDF:** [DOCUMENTACAO.pdf](DOCUMENTACAO.pdf)  
 **Vídeo de demonstração (P2):** https://youtu.be/a5yAvp3g-Kg
 
 ## 1. Tema
@@ -64,7 +64,7 @@ As telas (`src/app`) não escrevem SQL; chamam repositórios (`src/database`). A
 3. **Falha temporária** (sem internet, servidor fora, sessão expirada): o envio para sem perder a ordem e tenta de novo com *backoff* exponencial (2 s até 2 min). Também tenta quando a conexão volta (`expo-network`) e quando o app volta para a frente.
 4. **Recusa definitiva** (regra de acesso, dado duplicado): o item fica com status "erro", aparece na tela Sincronização e não bloqueia os demais. O usuário pode tentar de novo ou descartar e baixar tudo do servidor.
 5. **Idempotência:** como os IDs nascem no aparelho e o envio é *upsert*, reenviar um item que o servidor já recebeu não duplica nada.
-6. **Recebimento:** depois do envio, o app baixa, tabela por tabela, as linhas com `updated_at` maior que o último recebido, e depois as exclusões. Registros com alteração local ainda na fila não são sobrescritos. Quando a fila sobe, vence a última escrita sincronizada.
+6. **Recebimento:** depois do envio, o app baixa, tabela por tabela, as linhas com `updated_at` maior que o último recebido, e depois as exclusões. Registros com alteração local ainda na fila não são sobrescritos. Quando a fila sobe, vence a última escrita sincronizada. Se uma linha do servidor esbarra numa alteração local recusada (por exemplo, o mesmo CPF cadastrado offline em dois aparelhos), ela fica de fora até o usuário descartar o item com erro; aí o app baixa tudo de novo.
 
 | Precisa de internet | Funciona offline |
 |---|---|

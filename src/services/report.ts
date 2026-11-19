@@ -127,7 +127,7 @@ export function buildReportHtml(data: DashboardData, students: Aluno[], filters:
     <tbody>${studentRows}</tbody>
   </table>
 
-  <footer>Relatório gerado pelo aplicativo de gestão da Casa São Domingos Sávio. Dados armazenados localmente no dispositivo.</footer>
+  <footer>Relatório gerado pelo aplicativo de gestão da Casa São Domingos Sávio. Dados salvos no aparelho e sincronizados com o servidor da Casa.</footer>
 </body></html>`;
 }
 
