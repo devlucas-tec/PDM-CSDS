@@ -171,11 +171,20 @@ async function applyRows(db: SQLiteDatabase, table: SyncTable, rows: Record<stri
     const updates = columns.filter((c) => !table.pk.includes(c)).map((c) => `${c} = excluded.${c}`);
     const conflict =
       table.insertOnly || updates.length === 0 ? 'DO NOTHING' : `DO UPDATE SET ${updates.join(', ')}`;
-    await db.runAsync(
-      `INSERT INTO ${table.name} (${columns.join(', ')}) VALUES (${columns.map(() => '?').join(', ')})
-       ON CONFLICT (${table.pk.join(', ')}) ${conflict}`,
-      values,
-    );
+    try {
+      await db.runAsync(
+        `INSERT INTO ${table.name} (${columns.join(', ')}) VALUES (${columns.map(() => '?').join(', ')})
+         ON CONFLICT (${table.pk.join(', ')}) ${conflict}`,
+        values,
+      );
+    } catch (error) {
+      // A linha do servidor bate com uma alteração local ainda não aceita (ex.: o
+      // mesmo CPF cadastrado offline neste aparelho e recusado pelo servidor). Ela
+      // é ignorada por enquanto; quando o usuário descarta o item com erro, o app
+      // baixa tudo de novo e a versão do servidor entra.
+      if (skip.size > 0) continue;
+      throw error;
+    }
     applied++;
   }
   return applied;

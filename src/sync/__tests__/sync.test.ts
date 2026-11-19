@@ -7,8 +7,8 @@ import { addUser, student } from '@/database/__tests__/fixtures';
 import { openTestDatabase } from '@/database/__tests__/node-sqlite-adapter';
 import { migrateDatabase } from '@/database/schema';
 import { createStudent, deleteStudent, getStudent, listStudents, updateStudent } from '@/database/student-repository';
-import { pullChanges, pushQueue, syncNow } from '@/sync/engine';
-import { countPending, listQueue } from '@/sync/outbox';
+import { pullChanges, pushQueue, resetLocalData, syncNow } from '@/sync/engine';
+import { countPending, discardFailed, listQueue } from '@/sync/outbox';
 import { RemoteError } from '@/sync/remote';
 
 jest.mock('expo-crypto', () => {
@@ -167,6 +167,36 @@ describe('recebimento de mudanças do servidor', () => {
     await syncNow(a, remote);
     await syncNow(b, remote);
     expect(await getStudent(b, id)).toBeNull();
+  });
+
+  it('CPF repetido entre aparelhos: o servidor recusa e o recebimento não trava', async () => {
+    const remote = new FakeRemote();
+    const celular = await device();
+    const computador = await device();
+    const adminId = await addUser(celular, { nome: 'Ramona', email: 'ramona@casa.org', perfil: 'admin' });
+    const usuario = (await celular.getFirstAsync<Record<string, unknown>>('SELECT * FROM usuarios'))!;
+    remote.serverWrite('usuarios', usuario);
+    await syncNow(computador, remote);
+
+    // Celular offline cadastra; computador cadastra o mesmo CPF e envia primeiro.
+    remote.online = false;
+    await createStudent(celular, student({ nome: 'Do celular', cpf: '529.982.247-25' }), adminId);
+    remote.online = true;
+    await createStudent(computador, student({ nome: 'Do computador', cpf: '529.982.247-25' }), adminId);
+    await syncNow(computador, remote);
+    remote.reject = (table, row) =>
+      table === 'alunos' && remote.rows('alunos').some((r) => r.cpf === row.cpf && r.id !== row.id);
+
+    // O celular volta: o aluno dele é recusado, mas a sincronização termina sem erro.
+    const result = await syncNow(celular, remote);
+    expect(result.recusados).toBeGreaterThan(0);
+    expect((await listStudents(celular)).map((s) => s.nome)).toEqual(['Do celular']);
+
+    // Ao descartar o item recusado e baixar de novo, fica a versão do servidor.
+    await discardFailed(celular);
+    await resetLocalData(celular, { keepQueue: true });
+    await syncNow(celular, remote);
+    expect((await listStudents(celular)).map((s) => s.nome)).toEqual(['Do computador']);
   });
 
   it('não sobrescreve um registro com alteração local ainda não enviada', async () => {

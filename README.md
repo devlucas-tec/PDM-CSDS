@@ -94,7 +94,7 @@ flowchart LR
   - **Recusa do servidor** (regra de acesso, CPF repetido): o item fica marcado com erro, aparece na tela **Sincronização** e não trava o resto da fila.
   - **Reenvio seguro:** os IDs são UUIDs gerados no aparelho, e o envio é um *upsert* (histórico e auditoria usam "insert ou ignora"). Reenviar algo que o servidor já recebeu não duplica nada.
 - **Recebimento:** para cada tabela, o app baixa as linhas com `updated_at` maior que o último recebido. O `updated_at` vem sempre do relógio do servidor, nunca do celular. As **exclusões** feitas em outros aparelhos chegam pela tabela `exclusoes`, preenchida por trigger, inclusive as em cascata.
-- **Conflitos:** um registro com alteração local ainda na fila não é sobrescrito pelo que vem do servidor. Quando a fila é enviada, **vence a última escrita sincronizada**.
+- **Conflitos:** um registro com alteração local ainda na fila não é sobrescrito pelo que vem do servidor. Quando a fila é enviada, **vence a última escrita sincronizada**. Se uma linha do servidor esbarra numa alteração local recusada (por exemplo, o mesmo CPF cadastrado offline em dois aparelhos), ela fica de fora até o usuário descartar o item com erro; aí o app baixa tudo de novo.
 - **O que exige internet:** só o login no aparelho pela primeira vez e o cadastro de novos usuários, porque a conta precisa existir no servidor. Todo o resto funciona offline.
 
 ### Segurança no servidor

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { SyncStatus } from '@/components/sync-status';
@@ -15,12 +15,15 @@ type TabHeaderProps = {
   children?: ReactNode;
 };
 
+/** Na web, as abas ficam numa barra flutuante no topo; o cabeçalho começa abaixo dela. */
+const WEB_TAB_BAR = Platform.OS === 'web' ? 72 : 0;
+
 /** Cabeçalho das telas de aba (as abas nativas não têm barra de título). */
 export function TabHeader({ overline, title, subtitle, right, children }: TabHeaderProps) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   return (
-    <View style={[styles.wrapper, { paddingTop: insets.top + 12, backgroundColor: theme.background }]}>
+    <View style={[styles.wrapper, { paddingTop: insets.top + 12 + WEB_TAB_BAR, backgroundColor: theme.background }]}>
       <View style={styles.inner}>
         <View style={styles.statusRow}>
           <SyncStatus />

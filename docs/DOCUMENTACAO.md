@@ -48,7 +48,7 @@ Desde o P2, as chaves são **UUIDs gerados no aparelho**, iguais no SQLite e no 
 4. **Transações.** Cada cadastro grava ficha, histórico e auditoria juntos; se o app for interrompido, nada fica pela metade.
 5. **Migrações versionadas** com `PRAGMA user_version`: o banco evoluiu da v1 para a v2 sem perder dados. A v3 (P2) trocou as chaves por UUIDs e criou a fila de sincronização.
 
-As telas (`src/app`) não escrevem SQL; chamam repositórios (`src/database`). As regras de negócio ficam em `src/lib`. São **43 testes automatizados** (`npm test`) que rodam o SQL de verdade, incluindo fechar e reabrir o banco e simular a conexão caindo no meio do envio.
+As telas (`src/app`) não escrevem SQL; chamam repositórios (`src/database`). As regras de negócio ficam em `src/lib`. São **44 testes automatizados** (`npm test`) que rodam o SQL de verdade, incluindo fechar e reabrir o banco e simular a conexão caindo no meio do envio.
 
 ## 4. Backend e offline first (P2)
 
