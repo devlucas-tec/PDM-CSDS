@@ -135,8 +135,14 @@ export function AuthProvider({ children }: PropsWithChildren) {
     async (input: { nome: string; email: string; senha: string }) => {
       // A Edge Function só aceita sem login enquanto não existir nenhum usuário.
       await createStaffAccount(db, { ...input, perfil: 'admin' });
-      setHasUsers(true);
-      await signIn(input.email, input.senha);
+      // O signIn já marca que existem usuários junto com o usuário logado. Marcar
+      // antes fazia a tela de login piscar entre o cadastro e a entrada no app.
+      try {
+        await signIn(input.email, input.senha);
+      } finally {
+        // Se o login falhar (ex.: sem internet), a conta já existe: mostra o login.
+        setHasUsers(true);
+      }
     },
     [db, signIn],
   );
