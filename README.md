@@ -11,6 +11,10 @@ Projetos 1 e 2 da disciplina **Programação para Dispositivos Móveis (2026.2)*
 - **P1:** app completo com persistência local (SQLite).
 - **P2:** **backend na nuvem (Supabase)** e funcionamento **offline first**. Toda alteração é gravada primeiro no aparelho e entra numa **fila de requisições**, enviada ao servidor em ordem quando há conexão. A equipe inteira passa a compartilhar os mesmos dados, em vários aparelhos. Veja [Projeto 2: backend e offline first](#projeto-2-backend-e-offline-first).
 
+## Vídeo de demonstração (P2)
+
+▶️ **[Assista no YouTube](https://youtu.be/a5yAvp3g-Kg)**: backend no Supabase, regras de acesso por perfil e o funcionamento offline first (modo avião, conexão oscilando, fila de sincronização e recusa do servidor).
+
 ## Tema
 
 A entidade principal é o **aluno**. A ficha cadastral tem mais de 40 campos, organizados em:
@@ -243,7 +247,19 @@ Prints tirados do app rodando no Expo Go, com os dados de demonstração.
 |:---:|:---:|:---:|
 | <img src="docs/prints/usuarios-sistema.png" width="220" alt="Lista de usuários do sistema com seus perfis" /> | <img src="docs/prints/seed.png" width="220" alt="Geração dos dados de demonstração e contas criadas" /> | <img src="docs/prints/tema-claro.png" width="220" alt="Escolha de aparência na tela de conta" /> |
 
+### Projeto 2: sincronização e perfis
+
+| Coordenação vê todas as aulas | Professor vê só as dele | Fila no modo avião |
+|:---:|:---:|:---:|
+| <img src="docs/prints/p2-agenda-coordenacao.png" width="220" alt="Agenda da coordenação com as aulas de todas as oficinas" /> | <img src="docs/prints/p2-agenda-professor.png" width="220" alt="Agenda do professor só com as aulas das próprias oficinas" /> | <img src="docs/prints/p2-fila-offline.png" width="220" alt="Tela de sincronização sem conexão, com a fila de alterações em ordem" /> |
+
+| Fila enviada | Servidor recusou (CPF repetido) | Item com o motivo do erro |
+|:---:|:---:|:---:|
+| <img src="docs/prints/p2-fila-vazia.png" width="220" alt="Fila vazia depois que a conexão voltou" /> | <img src="docs/prints/p2-indicador-erro.png" width="220" alt="Indicador vermelho de itens com erro" /> | <img src="docs/prints/p2-item-com-erro.png" width="220" alt="Item recusado pelo servidor com o motivo e as opções de reenviar ou descartar" /> |
+
 ### Vídeos
+
+- [Demonstração do P2 no YouTube](https://youtu.be/a5yAvp3g-Kg): backend e offline first.
 
 - [Primeiro acesso](docs/prints/primeiro-acesso.mp4): cadastro do primeiro administrador.
 - [Dados de demonstração](docs/prints/seed-admin.mp4): o admin gera o ano letivo fictício.

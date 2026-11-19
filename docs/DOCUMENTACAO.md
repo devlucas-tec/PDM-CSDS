@@ -3,6 +3,7 @@
 **Disciplina:** Programação para Dispositivos Móveis 2026.2, IFPB Campus Esperança. Prof. André Atanasio.
 **Tecnologia:** React Native + Expo SDK 58. P1: persistência local em SQLite (`expo-sqlite`). P2: backend no Supabase (Postgres, Auth, Edge Function) com sincronização offline first.
 **Versão em PDF:** [DOCUMENTACAO.pdf](DOCUMENTACAO.pdf)
+**Vídeo de demonstração (P2):** https://youtu.be/a5yAvp3g-Kg
 
 ## 1. Tema
 
@@ -70,6 +71,14 @@ As telas (`src/app`) não escrevem SQL; chamam repositórios (`src/database`). A
 | Primeiro login no aparelho; cadastro de usuários | Todo o resto: alunos, histórico, oficinas, calendário, chamada, relatórios, dashboard, PDF |
 
 ## 5. Capturas de tela
+
+**P2: perfis e sincronização**
+
+| Coordenação | Professor | Fila offline | Recusa do servidor |
+|:---:|:---:|:---:|:---:|
+| <img src="prints/p2-agenda-coordenacao.png" width="150" /> | <img src="prints/p2-agenda-professor.png" width="150" /> | <img src="prints/p2-fila-offline.png" width="150" /> | <img src="prints/p2-item-com-erro.png" width="150" /> |
+
+**P1**
 
 | Agenda (coordenação) | Lista de presença (professor) | Relatórios | Análise social |
 |:---:|:---:|:---:|:---:|
